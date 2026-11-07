@@ -91,10 +91,7 @@ export async function moveTo(ids, gid, { from = null, copy = false } = {}) {
   if (!ids.length) return;
   const name = gid ? groupOf(gid)?.name || 'group' : 'Ungrouped';
   if (copy && gid) await model.addToGroups(ids, [gid]);
-  else if (!gid) await model.changeMembership(ids, from ? { remove: [from] } : { replace: [] }, 'move to Ungrouped');
-  else if (from && from !== gid) await model.changeMembership(ids, { add: [gid], remove: [from] }, 'move to group');
-  else if (from) await model.addToGroups(ids, [gid]); // dropped back on its own group
-  else await model.changeMembership(ids, { replace: [gid] }, 'move to group'); // menu: leave every other group
+  else await model.moveItems(ids, gid, from);
   await done(`${copy ? 'Added' : 'Moved'} ${plural(ids.length, 'tab')} to ${name}`);
 }
 

@@ -81,6 +81,17 @@ export default async function () {
   await page.evaluate(async () => { const m = await import('./model.js'); await m.changeMembership(['i2'], { replace: ['A', 'C'] }); });
   await sleep(500);
 
+  // ---- dragging a selection that spans several sections moves every card, not only the dragged one's group
+  await page.evaluate(() => { document.querySelector('.section[data-key="A"] .card[data-id="i3"] .chk').click(); document.querySelector('.section[data-key="B"] .card[data-id="i1"] .chk').click(); });
+  await sleep(200);
+  await dnd('.section[data-key="A"] .card[data-id="i3"]', '#side .nav[data-gid="C"]');
+  await sleep(700);
+  s = await st();
+  check('dragging a mixed selection moves all of it', JSON.stringify([s.items.find((i) => i.id === 'i3').groupIds, s.items.find((i) => i.id === 'i1').groupIds]) === '[["C"],["C"]]', JSON.stringify(s.items.map((i) => [i.id, i.groupIds])));
+  await page.keyboard.press('Escape'); await sleep(200);
+  await page.evaluate(async () => { const m = await import('./model.js'); await m.changeMembership(['i3'], { replace: ['A'] }); await m.changeMembership(['i1'], { replace: ['B'] }); });
+  await sleep(500);
+
   // ---- reorder inside a section
   await dnd('.section[data-key="A"] .card[data-id="i3"]', '.section[data-key="A"] .card[data-id="i2"]', { x: 0.2 });
   await sleep(700);

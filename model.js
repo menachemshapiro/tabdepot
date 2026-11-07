@@ -56,6 +56,23 @@ export function changeMembership(ids, { add = [], remove = [], replace = null },
     };
   });
 }
+// Move tabs to a group (null = Ungrouped). Tabs that are in `from` just leave that group (so a tab that also
+// lives in other groups stays there); tabs that are not in `from`, or when there is no `from`, leave every group.
+export function moveItems(ids, gid, from = null) {
+  const set = new Set(ids);
+  return perform(gid ? 'move to group' : 'move to Ungrouped', (state) => {
+    const prev = new Map();
+    for (const it of state.items) {
+      if (!set.has(it.id)) continue;
+      prev.set(it.id, [...it.groupIds]);
+      const rest = from && it.groupIds.includes(from) ? it.groupIds.filter((g) => g !== from) : [];
+      it.groupIds = gid ? [...new Set([...rest, gid])] : rest;
+    }
+    return (s) => {
+      for (const it of s.items) if (prev.has(it.id)) it.groupIds = prev.get(it.id).filter((g) => groupExists(s, g));
+    };
+  });
+}
 export const addToGroups = (ids, gids) => changeMembership(ids, { add: gids }, 'add to group');
 export const removeFromGroup = (ids, gid) => changeMembership(ids, { remove: [gid] }, 'remove from group');
 export const moveToGroup = (ids, gid) => changeMembership(ids, { replace: gid ? [gid] : [] }, gid ? 'move to group' : 'move to Ungrouped');

@@ -3,6 +3,11 @@
 All notable changes to Tab Stash. Format based on [Keep a Changelog](https://keepachangelog.com/),
 versions follow [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH).
 
+## [2.1.1] - 2026-11-07
+### Fixed
+- Dragging several selected cards onto a group moves all of them. Before, only cards from the section you dragged from left their group; selected cards from other sections stayed where they were, so it looked like a copy.
+- All "move" actions now share one code path (menu, selection bar, drag). Hold Ctrl/Alt while dragging, or use **Add to…**, to copy instead.
+
 ## [2.1.0] - 2026-11-07
 ### Added
 - **Update from inside the extension.** The stash page checks GitHub for a newer release (at most every 6 hours; can be turned off in Settings) and shows a banner. **Update now** downloads the release zip, writes the files into the extension folder and reloads the extension. The first time you pick the Tab Stash folder in a folder dialog (browsers do not let an extension overwrite its own files otherwise); the choice is remembered.
