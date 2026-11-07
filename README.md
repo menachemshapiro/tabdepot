@@ -4,7 +4,7 @@
 
 Move open tabs into a visual stash page. Stashed tabs are **closed**, so they use no memory and no CPU. Come back to the stash to search, group and reopen them.
 
-Works in Chrome, Edge, Brave, Opera, Vivaldi and other Chromium browsers (Chrome 121+).
+Works in Chrome, Edge, Brave, Opera, Vivaldi and other Chromium browsers (Chrome 110+).
 
 ## Install
 
@@ -53,15 +53,33 @@ Pinned tabs are skipped by default (changeable in Settings). Chrome tab groups a
 ## The stash page
 
 - **Large thumbnails** with favicon, site, title, description and the time stashed. Drag the slider for card size.
-- **Click a card** to reopen it (and remove it from the stash). **Middle-click** opens it in the background. In selection mode, click toggles selection.
-- **Select** with the checkbox (Shift-click for a range), Ctrl/⌘+A, or a section's *Select* button, then use the bar at the bottom:
-  Restore · Restore as a Chrome tab group · Restore in a new window · Move to… · Copy links · Delete.
-- **Groups**: create, rename, recolour, collapse, delete. Drag cards onto a group in the sidebar. *Group by site* builds a group for every site with 2+ tabs.
-- **Search** (press `/`) across title, URL, description, your notes and group names. Sort by newest, oldest, title or site.
-- **Edit** a card's title, add a note ("why did I keep this?"), or change its group (⋯ menu on the card).
-- **Delete** has a 9-second Undo. `Delete` key deletes the selection.
-- **Remove duplicates**, **Export** (JSON backup or Markdown), **Import** (JSON backup, or any text with links).
+- **Groups and subgroups.** The side panel shows a tree (arrow to collapse a branch, pencil next to the name to rename / recolour / move a group, right-click for more). The main panel shows the same groups as nested sections. A tab can be in **several groups at once**; it appears in each, with an "Also in …" line.
+- **Opening a card.** Clicking follows *Settings → When I click a card* (open and remove / open and keep / ask). Whatever you choose, each card has two hover buttons, *Open and remove* and *Open and keep*, and **Alt-click** does the opposite of the setting. Middle-click opens in the background.
+- **Select** with the checkbox (Shift-click for a range), Ctrl/⌘+A, a section's *Select* button, or **Select ▾** (all shown, *all N matching this search*, invert, none). The bar under the header then offers Open ▾ · Move to… · Groups… · Add note… · Delete · More ▾.
+- **Drag and drop:** cards onto a group (Ctrl/Alt = also add instead of move); groups up/down to reorder, onto the middle of another group to nest; cards within a group to set your own order (switches sorting to *Manual*).
+- **Filters** under the header: site, age, has a note, link status. **Search** (press `/`) covers title, URL, description, notes and group names.
+- **Undo**: Ctrl+Z, or the Undo link after a change. **Keyboard:** arrows, Enter, `x`/Space, Delete, `m`, `g`, `n`, `e`, `t`, `?` (full list in ⋯ → Keyboard shortcuts).
+- **Triage** (`t` or the button): one tab at a time. → keep, `d` delete, `o` open and remove, Shift+`O` open and keep, `1`–`9` add to that group, `n` note, `u` undo, Esc leave.
+- **Link checker** (⋯ → Check all links): marks dead pages (404/410, removed YouTube videos), restricted pages (login or region blocks) and unreachable ones; filter by link status to review them.
+- **Duplicates** are recognised even with tracking parameters, `www.` or `youtu.be` links; ⋯ → *Merge duplicate links* combines them (groups and notes are merged).
+- If Tab Stash is open in **more than one tab**, a notice says so and the pages stay in sync.
 - Light and dark theme follow your system.
+
+## Safety nets
+
+- **Safety snapshots** (⋯ → Safety snapshots…): the stash is copied automatically after changes and before risky actions; the list of open tabs is saved every few minutes and whenever a window closes (so a closed window or a crash is recoverable). Restore by *adding back what is missing* or *replacing the stash*. Kept locally in the browser (last 40 stash / 30 tab snapshots); thumbnails are not copied.
+- **Automatic backup file**: Settings → Backups → *Choose backup file…* (for example on your Desktop). Kept up to date about a minute after each change while a stash page is open. After a browser restart the browser may ask permission again; a notice with an *Allow* button appears.
+- **Undo** covers moves, group changes, notes, deletes, reordering and merges.
+
+## Open Tab Stash in every new tab
+
+Browsers only allow this as a fixed extension setting, so it is opt-in:
+
+```
+bash ~/tab-stash/newtab.sh on     # or: off, status
+```
+
+then Settings → *Reload extension*. `update.sh` keeps the setting across updates.
 
 ## How it keeps memory low
 

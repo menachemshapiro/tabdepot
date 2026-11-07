@@ -3,6 +3,30 @@
 All notable changes to Tab Stash. Format based on [Keep a Changelog](https://keepachangelog.com/),
 versions follow [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH).
 
+## [2.0.0] - 2026-11-07
+A big release: the stash page was rebuilt. Your existing stash is migrated automatically (take a backup first if you like: ⋯ → Back up stash to a file…).
+### Added
+- **Subgroups.** Groups can contain groups (Alpha → Alpha One, Alpha Two …), shown as a tree in the side panel and as nested sections in the main panel.
+- **A tab can be in several groups.** Cards show an "Also in …" line; **Groups…** (selection bar, card menu, `g`) has tick boxes for adding and removing groups for many tabs at once.
+- **Choose per click whether a tab stays in the stash.** Hover buttons *Open and remove* / *Open and keep*, Alt-click does the opposite of your setting, and a new setting can ask every time.
+- **Drag and drop.** Drag cards onto a group (hold Ctrl/Alt to add instead of move), drag groups to reorder or nest them, drag cards inside a group to put them in your own order (*Manual* sort).
+- **Undo** for moves, group changes, notes, edits, deletes, reordering and duplicate merging (Ctrl+Z or the Undo link). Each undo only reverts its own change.
+- **Keyboard navigation:** arrows move between cards, Enter opens, `x`/Space selects, `m` move, `g` groups, `n` note, `e` edit, Delete, `t` triage, `/` search, `?` for the list.
+- **Triage mode:** go through tabs one at a time (keep, delete, open, add to group 1–9, note, undo).
+- **Filters** by site, age ("more than 30 days ago"), "has a note" and link status; **Select ▾** has *select all matching this search*, *select all shown* and *invert selection*. Notes can be added to many tabs at once.
+- **Link checker** (⋯ menu): finds dead pages (404/410, removed YouTube videos) without opening them, marks restricted and unreachable ones, and tells you if you are offline instead of marking everything dead.
+- **Automatic safety snapshots:** the stash is copied after changes and before risky actions (bulk delete, import, merge); the list of open tabs is saved every few minutes and when a window closes. *Safety snapshots…* restores or merges them.
+- **Automatic backup to a file** you choose (for example on your Desktop), kept up to date while a stash page is open.
+- **Smarter duplicates:** tracking parameters, `www.`, trailing slashes, `youtu.be` vs `youtube.com/watch` and similar variants count as the same link; *Merge duplicate links* combines their groups and notes. The tab picker marks tabs that are already stashed.
+- **If Tab Stash is open in more than one tab** you now get a notice (with *Go there* / *Close the others*), and the pages stay in sync.
+- **Open Tab Stash in every new tab** (opt-in): `bash newtab.sh on` (and `off`); `update.sh` keeps it across updates.
+### Changed
+- The pencil for renaming a group now sits right next to the group name, in the side panel and in the main panel.
+- Group "Delete" keeps the tabs (they stay in the stash and in their other groups); subgroups move up one level.
+- Backup files are now version 3 (groups with parents, several groups per tab, manual order). Older backup files still import.
+### Fixed
+- Thumbnails for YouTube channel pages such as `https://www.youtube.com/@Name/videos` and `/featured`: the channel ID is found with more patterns and from a streamed read of the page, with a fallback that asks YouTube to resolve the address. Use *Diagnose thumbnail…* on a card if one still does not work.
+
 ## [1.2.2] - 2026-11-06
 ### Changed
 - The selection bar (Restore / Move to… / Delete …) now sits directly under the header instead of floating at the bottom, so it never covers cards.

@@ -33,13 +33,17 @@ mkdir -p "$BK"
 tar -czf "$BK/tab-stash-v$OLD.tar.gz" -C "$DEST/.." "$(basename "$DEST")"
 echo "Saved previous version to $BK/tab-stash-v$OLD.tar.gz"
 
+NEWTAB=0; [ -f "$DEST/.newtab" ] && NEWTAB=1
 if command -v rsync >/dev/null; then
-  rsync -a --delete --exclude 'update.sh' "$SRC"/ "$DEST"/
+  rsync -a --delete --exclude 'update.sh' --exclude '.newtab' "$SRC"/ "$DEST"/
 else
-  find "$DEST" -mindepth 1 -maxdepth 1 ! -name update.sh -exec rm -rf {} +
+  find "$DEST" -mindepth 1 -maxdepth 1 ! -name update.sh ! -name .newtab -exec rm -rf {} +
   cp -a "$SRC"/. "$DEST"/
 fi
-chmod +x "$DEST/update.sh" 2>/dev/null || true
+chmod +x "$DEST/update.sh" "$DEST/newtab.sh" 2>/dev/null || true
+if [ "$NEWTAB" = 1 ] && [ -f "$DEST/newtab.sh" ]; then
+  bash "$DEST/newtab.sh" on >/dev/null && echo "Kept your \"open Tab Stash in new tabs\" setting."
+fi
 
 echo
 echo "Updated v$OLD -> v$NEW"
