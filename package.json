@@ -1,0 +1,7 @@
+{
+  "name": "tab-stash-tests",
+  "private": true,
+  "description": "Dev-only: end-to-end tests that load the extension in a real Chromium. Not part of the extension.",
+  "scripts": { "test": "node tests/run-all.mjs" },
+  "devDependencies": { "puppeteer-core": "^25.16.0" }
+}

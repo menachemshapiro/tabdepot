@@ -301,15 +301,80 @@ const decodeEntities = (s) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+// Where a YouTube channel id can hide, most reliable first.
+const CHANNEL_ID_PATTERNS = [
+  /channel_id=(UC[\w-]{22})/,
+  /<link rel="canonical" href="https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})"/,
+  /itemprop="(?:channelId|identifier)" content="(UC[\w-]{22})"/,
+  /"(?:channelId|externalId)":"(UC[\w-]{22})"/,
+  /"browseId":"(UC[\w-]{22})"/,
+];
+const findChannelId = (text) => {
+  for (const re of CHANNEL_ID_PATTERNS) {
+    const m = text.match(re);
+    if (m) return m[1];
+  }
+  return '';
+};
+
+// Streams a page and stops as soon as `done(text)` is satisfied (or after maxChars), so huge
+// pages are read only as far as needed.
+async function readBody(res, done, maxChars = 6000000) {
+  if (!res.body?.getReader) return (await res.text()).slice(0, maxChars);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  try {
+    for (;;) {
+      const { done: end, value } = await reader.read();
+      if (end) break;
+      text += decoder.decode(value, { stream: true });
+      if (text.length >= maxChars || done(text)) break;
+    }
+  } finally {
+    reader.cancel().catch(() => {});
+  }
+  return text;
+}
+
+// Last resort for @handle pages whose HTML does not reveal the channel id.
+async function resolveYoutubeChannelId(url) {
+  try {
+    const res = await fetchWithTimeout('https://www.youtube.com/youtubei/v1/navigation/resolve_url?prettyPrint=false', 10000, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ context: { client: { clientName: 'WEB', clientVersion: '2.20250101.00.00', hl: 'en' } }, url }),
+    });
+    dbg(`resolve_url -> HTTP ${res.status}`);
+    if (!res.ok) return '';
+    const id = (await res.json())?.endpoint?.browseEndpoint?.browseId || '';
+    dbg(`  resolve_url channel id: ${id || 'none'}`);
+    return /^UC[\w-]{22}$/.test(id) ? id : '';
+  } catch (e) {
+    dbg(`resolve_url failed: ${e.message}`);
+    return '';
+  }
+}
+
 // Reads title / description / preview image (and a YouTube channel id) straight from the web,
 // without opening the page in a tab.
 export async function fetchMeta(url) {
   try {
-    const res = await fetchWithTimeout(url, 10000);
-    const type = res.headers.get('content-type') || '';
-    dbg(`page ${url.slice(0, 80)} -> HTTP ${res.status} ${type.split(';')[0]}${res.url && res.url !== url ? ` (redirected to ${res.url.slice(0, 80)})` : ''}`);
-    if (!type.includes('html')) return {};
-    const text = (await res.text()).slice(0, 800000);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000); // covers headers + body
+    let res;
+    let text;
+    try {
+      res = await fetch(url, { signal: ctrl.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
+      const type = res.headers.get('content-type') || '';
+      dbg(`page ${url.slice(0, 80)} -> HTTP ${res.status} ${type.split(';')[0]}${res.url && res.url !== url ? ` (redirected to ${res.url.slice(0, 80)})` : ''}`);
+      if (!type.includes('html')) return {};
+      const onYoutube = isYoutubeHost(url);
+      // Normal pages: stop after </head>. YouTube: also wait until the channel id turns up.
+      text = await readBody(res, (t) => t.includes('</head>') && (!onYoutube || findChannelId(t)));
+    } finally {
+      clearTimeout(timer);
+    }
     const meta = (key) => {
       const a = new RegExp(`<meta[^>]+(?:name|property)=["']${key}["'][^>]*content=["']([^"']*)["']`, 'i');
       const b = new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]*(?:name|property)=["']${key}["']`, 'i');
@@ -322,9 +387,12 @@ export async function fetchMeta(url) {
     } catch {
       ogImage = '';
     }
-    const channelId =
-      (text.match(/channel_id=(UC[\w-]{22})/) || text.match(/"(?:channelId|externalId)":"(UC[\w-]{22})"/) || [])[1] || '';
-    dbg(`  read ${text.length} chars; title="${title.slice(0, 50)}"; og:image=${ogImage ? ogImage.slice(0, 80) : 'none'}; channelId=${channelId || 'none'}`);
+    const channelId = findChannelId(text);
+    dbg(`  read ${text.length} chars; </head> at ${text.indexOf('</head>')}; title="${title.slice(0, 50)}"; og:image=${ogImage ? ogImage.slice(0, 80) : 'none'}; channelId=${channelId || 'none'}`);
+    if (!title && !ogImage) {
+      dbg(`  no title or preview image in what was read. Start of page: ${text.slice(0, 160).replace(/\s+/g, ' ')}`);
+      if (/consent\.|before you continue/i.test(text.slice(0, 20000))) dbg('  (looks like a cookie-consent page)');
+    }
     return {
       title: title.slice(0, 200),
       description: (meta('description') || meta('og:description')).slice(0, 300),
@@ -332,7 +400,7 @@ export async function fetchMeta(url) {
       channelId,
     };
   } catch (e) {
-    dbg(`page fetch failed: ${e.message}`);
+    dbg(`page fetch failed: ${e.name === 'AbortError' ? 'timed out' : e.message}`);
     return {};
   }
 }
@@ -376,11 +444,11 @@ export function youtubeId(url) {
   }
 }
 
-async function fetchWithTimeout(url, ms = 8000) {
+async function fetchWithTimeout(url, ms = 8000, init = {}) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
   try {
-    return await fetch(url, { signal: ctrl.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
+    return await fetch(url, { credentials: 'omit', referrerPolicy: 'no-referrer', ...init, signal: ctrl.signal });
   } finally {
     clearTimeout(timer);
   }
@@ -408,8 +476,9 @@ async function fetchImageBlob(url) {
     const h = Math.max(1, Math.round((bmp.height * w) / bmp.width));
     const canvas = new OffscreenCanvas(w, h);
     canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
+    const dims = `${bmp.width}x${bmp.height}`;
     bmp.close?.();
-    dbg(`image ${url.slice(0, 90)} -> OK (${bmp.width}x${bmp.height})`);
+    dbg(`image ${url.slice(0, 90)} -> OK (${dims})`);
     return await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.75 });
   } catch (e) {
     dbg(`image ${url.slice(0, 90)} -> error: ${e.message}`);
@@ -495,7 +564,9 @@ async function enrichItem(item) {
     if (meta.title && (!item.title || item.title === item.url)) patch.title = meta.title;
 
     if (!blob && onYoutube) {
-      const feed = await youtubeFeedInfo(item.url, meta.channelId);
+      let channelId = meta.channelId;
+      if (!channelId && !/[?&]list=/.test(item.url)) channelId = await resolveYoutubeChannelId(item.url);
+      const feed = await youtubeFeedInfo(item.url, channelId);
       if (feed) {
         blob = await fetchImageBlob(`https://i.ytimg.com/vi/${feed.videoId}/mqdefault.jpg`);
         if (!item.description && !patch.description && feed.entryTitle) patch.description = `Latest: ${feed.entryTitle}`;
