@@ -1,7 +1,7 @@
 // Tab picker: lists every open tab (all windows) with checkboxes, then stashes the chosen ones.
 // Used inside the toolbar popup and inside a dialog on the stash page.
 
-import { faviconFor, hostOf, isStashableUrl } from './common.js';
+import { faviconFor, hostOf, isStashableUrl, flattenGroups, getState, dupKey } from './common.js';
 
 function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);
@@ -24,6 +24,7 @@ export async function mountPicker(root, { groups = [], onDone, onCancel }) {
   const wins = await chrome.windows.getAll({ populate: true });
   wins.sort((a, b) => (b.id === cur.id) - (a.id === cur.id));
 
+  const stashed = new Set((await getState()).items.map((i) => dupKey(i.url)));
   const rows = []; // { tab, el, cb, text }
   const list = h('div', { class: 'pk-list' });
 
@@ -60,7 +61,8 @@ export async function mountPicker(root, { groups = [], onDone, onCancel }) {
         h('span', { class: 'pk-text' }, h('span', { class: 'pk-title', text: t.title || url }), h('span', { class: 'pk-url', text: hostOf(url) || url })),
         t.pinned && h('span', { class: 'pk-tag', text: 'pinned' }),
         t.audible && h('span', { class: 'pk-tag', text: '♪ playing' }),
-        t.discarded && h('span', { class: 'pk-tag', text: 'asleep' })
+        t.discarded && h('span', { class: 'pk-tag', text: 'asleep' }),
+        stashed.has(dupKey(url)) && h('span', { class: 'pk-tag', text: 'already stashed', title: 'This page is already in your stash; stashing it again just updates that entry' })
       );
       const row = { tab: t, el, cb, text: `${t.title || ''} ${url}`.toLowerCase() };
       rows.push(row);
@@ -100,7 +102,7 @@ export async function mountPicker(root, { groups = [], onDone, onCancel }) {
     'select',
     { class: 'pk-select' },
     h('option', { value: '', text: 'Ungrouped' }),
-    groups.map((g) => h('option', { value: g.id, text: g.name })),
+    flattenGroups(groups).map(({ group, depth }) => h('option', { value: group.id, text: '\u00a0\u00a0'.repeat(depth) + (depth ? '↳ ' : '') + group.name })),
     h('option', { value: '__new', text: '+ New group…' })
   );
   const newName = h('input', { class: 'pk-newname', placeholder: 'New group name', maxlength: '60', hidden: true });

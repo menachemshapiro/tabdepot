@@ -1,7 +1,8 @@
 // Service worker: rolling thumbnail cache, context menus, shortcuts, auto-stash, badge.
 
 import { STASH_PAGE, getSettings, getState, idbPut, idbDel, idbClear, hostOf } from './common.js';
-import { captureActive, openStashPage, stashTabs, stashLink, tabsForScope } from './core.js';
+import { captureActive, openStashPage, stashTabs, stashLink, tabsForScope, activity } from './core.js';
+import { takeStashSnapshot, takeTabsSnapshot, windowsData } from './snapshots.js';
 
 // ---------- rolling thumbnail cache for open tabs ----------
 
@@ -52,6 +53,8 @@ chrome.runtime.onInstalled.addListener(({ reason, previousVersion }) => {
     chrome.storage.local.set({ updatedFrom: previousVersion });
   }
   chrome.alarms.create('auto-stash', { periodInMinutes: 30 });
+  chrome.alarms.create('snapshot', { periodInMinutes: 10 });
+  refreshWindowCache();
   updateBadge();
   if (reason === 'install' || reason === 'update') openStashPage();
 });
@@ -59,6 +62,8 @@ chrome.runtime.onInstalled.addListener(({ reason, previousVersion }) => {
 chrome.runtime.onStartup.addListener(() => {
   idbClear('live').catch(() => {}); // tab ids are not stable across browser restarts
   chrome.alarms.create('auto-stash', { periodInMinutes: 30 });
+  chrome.alarms.create('snapshot', { periodInMinutes: 10 });
+  refreshWindowCache();
   updateBadge();
 });
 
@@ -105,6 +110,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 // ---------- auto-stash of long-idle tabs ----------
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === 'snapshot') {
+    await takeTabsSnapshot('automatic').catch(() => {});
+    await takeStashSnapshot('automatic', { auto: true, minGapMs: 30 * 60 * 1000 }).catch(() => {});
+    return;
+  }
   if (alarm.name !== 'auto-stash') return;
   const settings = await getSettings();
   if (!settings.autoStashDays) return;
@@ -114,6 +124,39 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   );
   // never visits tabs (noCapture): thumbnails come only from the rolling cache
   if (tabs.length) await stashTabs(tabs, { noCapture: true });
+});
+
+// ---------- safety snapshots: remember open windows so an accidental close is recoverable ----------
+
+let cacheTimer;
+function scheduleWindowCache() {
+  clearTimeout(cacheTimer);
+  cacheTimer = setTimeout(refreshWindowCache, 2500);
+}
+async function refreshWindowCache() {
+  try {
+    const cache = {};
+    for (const w of await windowsData()) cache[w.id] = w;
+    await chrome.storage.session.set({ winCache: cache });
+  } catch {
+    /* best effort */
+  }
+}
+for (const ev of [chrome.tabs.onCreated, chrome.tabs.onRemoved, chrome.tabs.onMoved, chrome.tabs.onAttached, chrome.tabs.onDetached, chrome.windows.onCreated]) {
+  ev.addListener(scheduleWindowCache);
+}
+chrome.tabs.onUpdated.addListener((_id, info) => {
+  if (info.status === 'complete' || info.title || info.url) scheduleWindowCache();
+});
+chrome.windows.onRemoved.addListener(async (windowId) => {
+  if (Date.now() - activity.lastStashAt < 8000) return; // closed because we stashed it
+  try {
+    const { winCache } = await chrome.storage.session.get('winCache');
+    const w = winCache?.[windowId];
+    if (w && w.tabs.length >= 2) await takeTabsSnapshot('window closed', [w]);
+  } catch {
+    /* best effort */
+  }
 });
 
 // ---------- badge ----------

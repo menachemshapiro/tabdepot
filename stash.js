@@ -1,97 +1,34 @@
 import {
-  COLORS,
   COLOR_HEX,
-  DEFAULT_SETTINGS,
   getState,
   getSettings,
   saveSettings,
-  mutate,
-  ensureGroup,
-  uid,
   hostOf,
   faviconFor,
   idbGet,
   idbPut,
   idbDel,
   idbKeys,
+  childGroups,
+  descendantIds,
+  groupPath,
   STASH_PAGE,
 } from './common.js';
-import { restoreItems, enrichMissing, diagnoseThumbnail } from './core.js';
+import { restoreItems, enrichMissing } from './core.js';
 import { mountPicker } from './picker.js';
+import * as model from './model.js';
+import { listSnapshots, getSnapshot } from './snapshots.js';
+import { app, byId, groupOf, refresh, done, doUndo, selectedItems } from './app.js';
+import { $, h, ic, ago, hueOf, plural, showMenu, closeMenu, toast, hideToast, setBanner } from './ui.js';
+import * as act from './actions.js';
+import { openSettings, showText, refreshAutobackupStatus } from './dialogs.js';
+import { openSnapshots } from './snapui.js';
+import { startTriage } from './triage.js';
 
-const $ = (s, r = document) => r.querySelector(s);
+const ui = app.ui;
+const DAY = 86400_000;
 
-/* ---------------------------------------------------------------- helpers */
-
-function h(tag, attrs = {}, ...kids) {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs || {})) {
-    if (v == null || v === false) continue;
-    if (k === 'class') el.className = v;
-    else if (k === 'text') el.textContent = v;
-    else if (k === 'style') {
-      for (const [prop, val] of Object.entries(v)) {
-        if (prop.startsWith('--')) el.style.setProperty(prop, val); // custom properties need setProperty
-        else el.style[prop] = val;
-      }
-    }
-    else if (k === 'dataset') Object.assign(el.dataset, v);
-    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
-    else el.setAttribute(k, v === true ? '' : v);
-  }
-  for (const kid of kids.flat()) {
-    if (kid == null || kid === false) continue;
-    el.append(kid.nodeType ? kid : document.createTextNode(kid));
-  }
-  return el;
-}
-
-const ICONS = {
-  restore: '<path d="M7 17 17 7M8 7h9v9"/>',
-  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
-  edit: '<path d="M4 20h4L19 9l-4-4L4 16v4z"/>',
-  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
-  folder: '<path d="M3 7h6l2 2h10v10H3z"/>',
-  window: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18"/>',
-  more: '<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>',
-  x: '<path d="M6 6l12 12M18 6 6 18"/>',
-  chevron: '<path d="m6 9 6 6 6-6"/>',
-  select: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12 3 3 5-6"/>',
-};
-function ic(name) {
-  const span = h('span', { class: 'ic' });
-  span.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`;
-  return span;
-}
-
-const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
-function ago(ts) {
-  const s = (ts - Date.now()) / 1000;
-  const a = Math.abs(s);
-  if (a < 60) return 'just now';
-  if (a < 3600) return rtf.format(Math.round(s / 60), 'minute');
-  if (a < 86400) return rtf.format(Math.round(s / 3600), 'hour');
-  if (a < 86400 * 30) return rtf.format(Math.round(s / 86400), 'day');
-  if (a < 86400 * 365) return rtf.format(Math.round(s / 86400 / 30), 'month');
-  return rtf.format(Math.round(s / 86400 / 365), 'year');
-}
-
-function hueOf(str) {
-  let n = 0;
-  for (const c of str) n = (n * 31 + c.charCodeAt(0)) >>> 0;
-  return n % 360;
-}
-
-const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
-
-/* ------------------------------------------------------------------ state */
-
-let state = { items: [], groups: [] };
-let settings = { ...DEFAULT_SETTINGS };
-const ui = { progress: null, view: 'all', query: '', selected: new Set(), anchor: null, order: [], noneCollapsed: false };
-
-const byId = (id) => state.items.find((i) => i.id === id);
-const groupOf = (id) => state.groups.find((g) => g.id === id);
+/* ----------------------------------------------------------- data selection */
 
 const sorters = {
   newest: (a, b) => b.addedAt - a.addedAt || a.order - b.order,
@@ -100,17 +37,56 @@ const sorters = {
   domain: (a, b) => hostOf(a.url).localeCompare(hostOf(b.url)) || (a.title || '').localeCompare(b.title || ''),
 };
 
-async function refresh() {
-  state = await getState();
-  scheduleRender();
+const filtersActive = () => !!(ui.query || ui.filters.site || ui.filters.age || ui.filters.note || ui.filters.link);
+
+function passes(it, toks, names) {
+  const f = ui.filters;
+  if (toks.length) {
+    const hay = `${it.title} ${it.url} ${it.description} ${it.note || ''} ${it.groupIds.map((g) => names.get(g) || '').join(' ')}`.toLowerCase();
+    if (!toks.every((t) => hay.includes(t))) return false;
+  }
+  if (f.site && !hostOf(it.url).includes(f.site.toLowerCase().replace(/^www\./, ''))) return false;
+  if (f.age && Date.now() - it.addedAt < f.age * DAY) return false;
+  if (f.note && !it.note) return false;
+  if (f.link) {
+    const st = it.link?.status;
+    if (f.link === 'unchecked' ? !!it.link : f.link === 'bad' ? !(st === 'dead' || st === 'error') : st !== f.link) return false;
+  }
+  return true;
 }
-let raf = 0;
-function scheduleRender() {
-  if (raf) return;
-  raf = requestAnimationFrame(() => {
-    raf = 0;
-    render();
-  });
+
+// ids of every item that passes the search + filters (whole stash, whatever the current view)
+function matching() {
+  const toks = ui.query.toLowerCase().split(/\s+/).filter(Boolean);
+  const names = new Map(app.state.groups.map((g) => [g.id, groupPath(app.state.groups, g.id)]));
+  return new Set(app.state.items.filter((it) => passes(it, toks, names)).map((i) => i.id));
+}
+let match = new Set();
+
+const inSection = (it, key) => (key === 'none' ? !it.groupIds.length : it.groupIds.includes(key));
+
+function sortSection(list, key) {
+  const mode = app.settings.sort;
+  if (mode === 'manual') {
+    const pos = new Map((app.state.orders[key] || []).map((id, n) => [id, n]));
+    return list.slice().sort((a, b) => (pos.has(a.id) ? pos.get(a.id) : -1) - (pos.has(b.id) ? pos.get(b.id) : -1) || sorters.newest(a, b));
+  }
+  return list.slice().sort(sorters[mode] || sorters.newest);
+}
+
+// all: ignore search and filters (used when saving a manual order)
+const itemsOf = (key, all = false) => sortSection(app.state.items.filter((it) => inSection(it, key) && (all || match.has(it.id))), key);
+
+const subtreeIds = (gid) => {
+  const set = new Set([gid, ...descendantIds(app.state.groups, gid)]);
+  return new Set(app.state.items.filter((i) => i.groupIds.some((g) => set.has(g))).map((i) => i.id));
+};
+
+// items belonging to the current view and matching search/filters (collapsed sections included)
+function viewIds() {
+  const v = ui.view;
+  const scope = v === 'all' ? null : v === 'none' ? new Set(app.state.items.filter((i) => !i.groupIds.length).map((i) => i.id)) : subtreeIds(v);
+  return [...match].filter((id) => !scope || scope.has(id));
 }
 
 /* -------------------------------------------------------------- thumbnails */
@@ -154,8 +130,18 @@ async function loadThumb(img) {
   }
 }
 
+function refreshThumb(id) {
+  const old = thumbUrls.get(id);
+  if (old) URL.revokeObjectURL(old);
+  thumbUrls.delete(id);
+  for (const img of document.querySelectorAll(`.card[data-id="${id}"] .shot`)) {
+    img.classList.remove('ready');
+    loadThumb(img);
+  }
+}
+
 function pruneThumbUrls() {
-  const live = new Set(state.items.map((i) => i.id));
+  const live = new Set(app.state.items.map((i) => i.id));
   for (const [id, url] of thumbUrls) {
     if (!live.has(id)) {
       if (url) URL.revokeObjectURL(url);
@@ -164,23 +150,20 @@ function pruneThumbUrls() {
   }
 }
 
+// Once a day: drop stored thumbnails of tabs that are neither in the stash nor in a stash snapshot.
 async function gcThumbs() {
   try {
-    const live = new Set(state.items.map((i) => i.id));
+    const last = await idbGet('meta', 'thumbGc');
+    if (last && Date.now() - last < DAY) return;
+    const live = new Set(app.state.items.map((i) => i.id));
+    for (const s of await listSnapshots('stash')) {
+      const snap = await getSnapshot(s.id);
+      snap?.data?.items?.forEach((i) => live.add(i.id));
+    }
     for (const key of await idbKeys('thumbs')) if (!live.has(key)) await idbDel('thumbs', key);
+    await idbPut('meta', 'thumbGc', Date.now());
   } catch {
     /* ignore */
-  }
-}
-
-function refreshThumb(id) {
-  const old = thumbUrls.get(id);
-  if (old) URL.revokeObjectURL(old);
-  thumbUrls.delete(id);
-  const img = document.querySelector(`.card[data-id="${id}"] .shot`);
-  if (img) {
-    img.classList.remove('ready');
-    loadThumb(img);
   }
 }
 
@@ -198,631 +181,225 @@ channel.onmessage = (e) => {
 let enrichTimer;
 function scheduleEnrich(delay = 2500) {
   clearTimeout(enrichTimer);
-  enrichTimer = setTimeout(() => settings.fetchThumbs && enrichMissing().catch(() => {}), delay);
+  enrichTimer = setTimeout(() => app.settings.fetchThumbs && enrichMissing().catch(() => {}), delay);
 }
 
-/* ------------------------------------------------------------- menus/toast */
+/* ---------------------------------------------------------------- rendering */
 
-let openMenu = null;
-function closeMenu() {
-  openMenu?.remove();
-  openMenu = null;
-}
-function showMenu(anchor, entries) {
-  closeMenu();
-  const m = h(
-    'div',
-    { class: 'menu', role: 'menu' },
-    entries.map((e) =>
-      e.sep
-        ? h('hr')
-        : e.head
-          ? h('div', { class: 'menu-head', text: e.head })
-          : h('button', { class: 'menu-item' + (e.danger ? ' danger' : ''), onclick: () => { closeMenu(); e.onClick(); } }, e.label)
-    )
-  );
-  document.body.append(m);
-  const r = anchor.getBoundingClientRect();
-  const x = Math.min(r.left, innerWidth - m.offsetWidth - 8);
-  let y = r.bottom + 6;
-  if (y + m.offsetHeight > innerHeight - 8) y = Math.max(8, r.top - m.offsetHeight - 6);
-  m.style.left = Math.max(8, x) + 'px';
-  m.style.top = y + 'px';
-  openMenu = m;
-}
-document.addEventListener('pointerdown', (e) => {
-  if (openMenu && !openMenu.contains(e.target)) closeMenu();
-}, true);
-addEventListener('scroll', closeMenu, { passive: true });
-
-let toastTimer;
-function hideToast() {
-  $('#toast').hidden = true;
-}
-function toast(msg, action) {
-  const t = $('#toast');
-  t.replaceChildren(
-    h('span', { text: msg }),
-    action && h('button', { class: 'link', text: action.label, onclick: () => { hideToast(); action.onClick(); } })
-  );
-  t.hidden = false;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(hideToast, action ? 9000 : 3500);
-}
-
-/* ---------------------------------------------------------------- dialogs */
-
-const swatchBox = $('#gColors');
-for (const c of COLORS) {
-  swatchBox.append(
-    h('label', { title: c }, h('input', { type: 'radio', name: 'gcolor', value: c }), h('i', { style: { background: COLOR_HEX[c] } }))
-  );
-}
-
-function askGroup(group) {
-  return new Promise((resolve) => {
-    const dlg = $('#dlgGroup');
-    $('#gTitle').textContent = group ? 'Edit group' : 'New group';
-    $('#gName').value = group?.name || '';
-    const color = group?.color || ['blue', 'green', 'orange', 'purple', 'pink', 'cyan', 'yellow', 'red'][state.groups.length % 8];
-    swatchBox.querySelector(`input[value="${color}"]`).checked = true;
-    dlg.returnValue = '';
-    dlg.addEventListener(
-      'close',
-      () => {
-        if (dlg.returnValue !== 'ok') return resolve(null);
-        resolve({ name: $('#gName').value.trim(), color: swatchBox.querySelector('input:checked')?.value || 'blue' });
-      },
-      { once: true }
-    );
-    dlg.showModal();
-    $('#gName').focus();
-    $('#gName').select();
+let raf = 0;
+function scheduleRender() {
+  if (raf) return;
+  raf = requestAnimationFrame(() => {
+    raf = 0;
+    render();
   });
 }
-
-function askItem(item) {
-  return new Promise((resolve) => {
-    const dlg = $('#dlgItem');
-    $('#iTitle').value = item.title || '';
-    $('#iNote').value = item.note || '';
-    $('#iUrl').textContent = item.url;
-    const sel = $('#iGroup');
-    sel.replaceChildren(
-      h('option', { value: '', text: 'Ungrouped' }),
-      state.groups.map((g) => h('option', { value: g.id, text: g.name }))
-    );
-    sel.value = item.groupId && groupOf(item.groupId) ? item.groupId : '';
-    dlg.returnValue = '';
-    dlg.addEventListener(
-      'close',
-      () => resolve(dlg.returnValue === 'ok' ? { title: $('#iTitle').value.trim(), note: $('#iNote').value.trim(), groupId: sel.value || null } : null),
-      { once: true }
-    );
-    dlg.showModal();
-  });
-}
-
-async function openSettings() {
-  settings = await getSettings();
-  $('#sIncludePinned').checked = settings.includePinned;
-  $('#sPreserve').checked = settings.preserveChromeGroups;
-  $('#sDedupe').checked = settings.dedupe;
-  $('#sFetch').checked = settings.fetchThumbs;
-  $('#sCapture').checked = settings.flipCapture;
-  $('#sKeep').checked = settings.keepOnOpen;
-  $('#sLazy').checked = settings.lazyRestore;
-  $('#sAuto').value = settings.autoStashDays;
-  $('#homeUrl').value = STASH_PAGE;
-  $('#ver').textContent = 'v' + chrome.runtime.getManifest().version;
-  const dlg = $('#dlgSettings');
-  dlg.returnValue = '';
-  dlg.addEventListener(
-    'close',
-    async () => {
-      if (dlg.returnValue !== 'ok') return;
-      settings = await saveSettings({
-        includePinned: $('#sIncludePinned').checked,
-        preserveChromeGroups: $('#sPreserve').checked,
-        dedupe: $('#sDedupe').checked,
-        fetchThumbs: $('#sFetch').checked,
-        flipCapture: $('#sCapture').checked,
-        keepOnOpen: $('#sKeep').checked,
-        lazyRestore: $('#sLazy').checked,
-        autoStashDays: Math.max(0, Math.min(365, parseInt($('#sAuto').value, 10) || 0)),
-      });
-      toast('Settings saved');
-    },
-    { once: true }
-  );
-  dlg.showModal();
-}
-
-/* ---------------------------------------------------------------- actions */
-
-async function deleteItems(ids) {
-  const set = new Set(ids);
-  let removed = [];
-  await mutate((s) => {
-    removed = s.items.filter((i) => set.has(i.id));
-    s.items = s.items.filter((i) => !set.has(i.id));
-  });
-  ids.forEach((id) => ui.selected.delete(id));
-  await refresh();
-  if (!removed.length) return;
-  toast(`Deleted ${plural(removed.length, 'tab')}`, {
-    label: 'Undo',
-    onClick: async () => {
-      await mutate((s) => {
-        for (const it of removed) {
-          if (s.items.some((x) => x.id === it.id)) continue;
-          if (it.groupId && !s.groups.some((g) => g.id === it.groupId)) it.groupId = null;
-          s.items.push(it);
-        }
-      });
-      await refresh();
-    },
-  });
-}
-
-async function moveItems(ids, groupId) {
-  const set = new Set(ids);
-  await mutate((s) => {
-    for (const it of s.items) if (set.has(it.id)) it.groupId = groupId;
-  });
-  await refresh();
-  toast(`Moved ${plural(ids.length, 'tab')} to ${groupId ? groupOf(groupId)?.name || 'group' : 'Ungrouped'}`);
-}
-
-async function moveToNewGroup(ids) {
-  const res = await askGroup(null);
-  if (!res) return;
-  let gid;
-  await mutate((s) => {
-    const g = ensureGroup(s, res.name, res.color);
-    g.color = res.color;
-    gid = g.id;
-    const set = new Set(ids);
-    for (const it of s.items) if (set.has(it.id)) it.groupId = gid;
-  });
-  await refresh();
-  toast(`Moved ${plural(ids.length, 'tab')} to ${res.name}`);
-}
-
-function moveMenu(anchor, ids) {
-  showMenu(anchor, [
-    { head: 'Move to' },
-    { label: 'Ungrouped', onClick: () => moveItems(ids, null) },
-    ...state.groups.map((g) => ({ label: g.name, onClick: () => moveItems(ids, g.id) })),
-    { sep: true },
-    { label: 'New group…', onClick: () => moveToNewGroup(ids) },
-  ]);
-}
-
-async function restore(items, opts = {}) {
-  if (items.length > 25 && !confirm(`Open ${items.length} tabs?`)) return;
-  const n = await restoreItems(items, opts);
-  items.forEach((i) => ui.selected.delete(i.id));
-  await refresh();
-  if (n) toast(`Restored ${plural(n, 'tab')}`);
-}
-
-function restoreSelected(mode) {
-  const items = [...ui.selected].map(byId).filter(Boolean);
-  const groups = new Set(items.map((i) => i.groupId));
-  const g = groups.size === 1 ? groupOf([...groups][0]) : null;
-  return restore(items, { mode, groupTitle: g?.name || 'Restored', groupColor: g?.color || 'blue' });
-}
-
-function copyLinks(items) {
-  const md = items.map((i) => `- [${(i.title || i.url).replace(/[\[\]]/g, '')}](${i.url})`).join('\n');
-  navigator.clipboard.writeText(md).then(() => toast(`Copied ${plural(items.length, 'link')} as Markdown`));
-}
-
-async function editItem(item) {
-  const res = await askItem(item);
-  if (!res) return;
-  await mutate((s) => {
-    const it = s.items.find((x) => x.id === item.id);
-    if (it) Object.assign(it, { title: res.title || it.title, note: res.note, groupId: res.groupId });
-  });
-  await refresh();
-}
-
-async function editGroup(g) {
-  const res = await askGroup(g);
-  if (!res) return;
-  await mutate((s) => {
-    const x = s.groups.find((y) => y.id === g.id);
-    if (x) Object.assign(x, { name: res.name, color: res.color });
-  });
-  await refresh();
-}
-
-async function deleteGroup(g) {
-  const n = state.items.filter((i) => i.groupId === g.id).length;
-  if (!confirm(`Delete the group "${g.name}"?${n ? `\n\nIts ${plural(n, 'tab')} will move to Ungrouped.` : ''}`)) return;
-  await mutate((s) => {
-    s.groups = s.groups.filter((x) => x.id !== g.id);
-    for (const it of s.items) if (it.groupId === g.id) it.groupId = null;
-  });
-  if (ui.view === g.id) ui.view = 'all';
-  await refresh();
-}
-
-async function toggleCollapse(g) {
-  if (!g) {
-    ui.noneCollapsed = !ui.noneCollapsed;
-    return scheduleRender();
-  }
-  await mutate((s) => {
-    const x = s.groups.find((y) => y.id === g.id);
-    if (x) x.collapsed = !x.collapsed;
-  });
-  await refresh();
-}
-
-async function newGroup() {
-  const res = await askGroup(null);
-  if (!res) return;
-  await mutate((s) => {
-    const g = ensureGroup(s, res.name, res.color);
-    g.color = res.color;
-  });
-  await refresh();
-}
-
-async function autoGroupByDomain() {
-  const pool = ui.selected.size ? [...ui.selected].map(byId).filter(Boolean) : state.items.filter((i) => !i.groupId || !groupOf(i.groupId));
-  const counts = new Map();
-  for (const it of pool) {
-    const host = hostOf(it.url);
-    if (host) counts.set(host, (counts.get(host) || 0) + 1);
-  }
-  const hosts = new Set([...counts].filter(([, n]) => n >= 2).map(([host]) => host));
-  if (!hosts.size) return toast('No site has two or more tabs to group');
-  const ids = new Set(pool.map((i) => i.id));
-  await mutate((s) => {
-    for (const it of s.items) {
-      const host = hostOf(it.url);
-      if (ids.has(it.id) && hosts.has(host)) it.groupId = ensureGroup(s, host).id;
-    }
-  });
-  await refresh();
-  toast(`Created ${plural(hosts.size, 'group')} by site`);
-}
-
-async function fetchThumbsNow() {
-  const res = await enrichMissing({ retry: true });
-  if (res?.skipped) toast('Already fetching thumbnails…');
-  else toast(res?.total ? `Fetched ${res.fetched} of ${res.total} missing thumbnails` : 'No thumbnails are missing');
-}
-
-async function removeDuplicates() {
-  let removed = [];
-  await mutate((s) => {
-    const best = new Map();
-    for (const it of s.items) {
-      const cur = best.get(it.url);
-      const better = !cur || (!!it.groupId && !cur.groupId) || (!!it.groupId === !!cur.groupId && it.addedAt > cur.addedAt);
-      if (better) best.set(it.url, it);
-    }
-    const keep = new Set([...best.values()].map((i) => i.id));
-    removed = s.items.filter((i) => !keep.has(i.id));
-    s.items = s.items.filter((i) => keep.has(i.id));
-  });
-  await refresh();
-  if (!removed.length) return toast('No duplicates found');
-  toast(`Removed ${plural(removed.length, 'duplicate')}`, {
-    label: 'Undo',
-    onClick: async () => {
-      await mutate((s) => s.items.push(...removed));
-      await refresh();
-    },
-  });
-}
-
-/* ----------------------------------------------------------- import/export */
-
-function download(name, text, type = 'application/json') {
-  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type })), download: name });
-  document.body.append(a);
-  a.click();
-  setTimeout(() => {
-    URL.revokeObjectURL(a.href);
-    a.remove();
-  }, 500);
-}
-
-const blobToDataUrl = (blob) =>
-  new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result);
-    r.onerror = () => reject(r.error);
-    r.readAsDataURL(blob);
-  });
-
-const FILE_TYPES = [{ description: 'Tab Stash backup', accept: { 'application/json': ['.json'] } }];
-const slug = (str) => str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'tabs';
-
-// Opens a "Save as" dialog (starting at your Desktop) and writes a backup including thumbnails.
-async function saveBackup(items = state.items, label = 'all') {
-  if (!items.length) return toast('Nothing to back up yet');
-  const name = `tab-stash-${slug(label)}-${new Date().toISOString().slice(0, 10)}.json`;
-  let handle = null;
-  // The picker must be opened straight from the click, before any slow work.
-  if (window.showSaveFilePicker) {
-    try {
-      handle = await window.showSaveFilePicker({ suggestedName: name, startIn: 'desktop', types: FILE_TYPES });
-    } catch (e) {
-      if (e.name === 'AbortError') return;
-      handle = null; // fall back to a normal download
-    }
-  }
-  toast('Preparing backup…');
-  const gids = new Set(items.map((i) => i.groupId).filter(Boolean));
-  const out = [];
-  for (const it of items) {
-    let thumb = '';
-    try {
-      const blob = await idbGet('thumbs', it.id);
-      if (blob) thumb = await blobToDataUrl(blob);
-    } catch {
-      /* no thumbnail */
-    }
-    out.push({ ...it, thumb });
-  }
-  const data = {
-    app: 'tab-stash',
-    version: 2,
-    exportedAt: new Date().toISOString(),
-    groups: state.groups.filter((g) => gids.has(g.id)),
-    items: out,
-  };
-  const text = JSON.stringify(data);
-  if (handle) {
-    const w = await handle.createWritable();
-    await w.write(text);
-    await w.close();
-    toast(`Saved ${plural(items.length, 'tab')} to ${handle.name}`);
-  } else {
-    download(name, text);
-    toast(`Saved ${plural(items.length, 'tab')} to your Downloads folder as ${name}`);
-  }
-}
-
-async function restoreBackup() {
-  if (window.showOpenFilePicker) {
-    try {
-      const [fh] = await window.showOpenFilePicker({ startIn: 'desktop', types: FILE_TYPES, multiple: false });
-      return importFile(await fh.getFile());
-    } catch (e) {
-      if (e.name === 'AbortError') return;
-      /* otherwise fall through to the classic file input */
-    }
-  }
-  $('#importFile').click();
-}
-
-function exportMarkdown() {
-  const lines = [];
-  const line = (i) => `- [${(i.title || i.url).replace(/[\[\]]/g, '')}](${i.url})`;
-  for (const g of state.groups) {
-    const list = state.items.filter((i) => i.groupId === g.id);
-    if (list.length) lines.push(`## ${g.name}`, ...list.map(line), '');
-  }
-  const rest = state.items.filter((i) => !i.groupId || !groupOf(i.groupId));
-  if (rest.length) lines.push('## Ungrouped', ...rest.map(line), '');
-  download('tab-stash.md', lines.join('\n'), 'text/markdown');
-}
-
-async function importFile(file) {
-  const text = await file.text();
-  let incoming = [];
-  let incomingGroups = [];
-  try {
-    const data = JSON.parse(text);
-    if (Array.isArray(data.items)) {
-      incoming = data.items;
-      incomingGroups = Array.isArray(data.groups) ? data.groups : [];
-    }
-  } catch {
-    const urls = text.match(/https?:\/\/[^\s<>"')\]]+/g) || [];
-    incoming = [...new Set(urls)].map((url) => ({ url, title: url }));
-  }
-  incoming = incoming.filter((i) => i && typeof i.url === 'string' && /^[a-z-]+:/i.test(i.url));
-  if (!incoming.length) return toast('Nothing to import in that file');
-  let added = 0;
-  await mutate(async (s) => {
-    const have = new Set(s.items.map((i) => i.url));
-    const gmap = new Map();
-    for (const g of incomingGroups) gmap.set(g.id, ensureGroup(s, g.name, g.color).id);
-    let n = 0;
-    for (const i of incoming) {
-      n++;
-      if (have.has(i.url)) continue;
-      have.add(i.url);
-      const id = uid();
-      s.items.push({
-        id,
-        url: i.url,
-        title: String(i.title || i.url),
-        description: String(i.description || ''),
-        ogImage: String(i.ogImage || ''),
-        addedAt: Number(i.addedAt) || Date.now(),
-        order: n,
-        groupId: gmap.get(i.groupId) || null,
-        note: String(i.note || ''),
-      });
-      added++;
-      if (typeof i.thumb === 'string' && i.thumb.startsWith('data:image/')) {
-        try {
-          await idbPut('thumbs', id, await (await fetch(i.thumb)).blob());
-        } catch {
-          /* skip bad thumbnail */
-        }
-      }
-    }
-  });
-  await refresh();
-  toast(`Restored ${plural(added, 'tab')} from file${added < incoming.length ? ` (${incoming.length - added} already in your stash)` : ''}`);
-}
-
-/* --------------------------------------------------------------- rendering */
-
-function visibleItems() {
-  const toks = ui.query.toLowerCase().split(/\s+/).filter(Boolean);
-  if (!toks.length) return state.items;
-  const gname = new Map(state.groups.map((g) => [g.id, g.name]));
-  return state.items.filter((it) => {
-    const hay = `${it.title} ${it.url} ${it.description} ${it.note || ''} ${gname.get(it.groupId) || ''}`.toLowerCase();
-    return toks.every((t) => hay.includes(t));
-  });
-}
+app.render = scheduleRender;
 
 function render() {
+  const { state } = app;
   for (const id of [...ui.selected]) if (!byId(id)) ui.selected.delete(id);
   if (ui.view !== 'all' && ui.view !== 'none' && !groupOf(ui.view)) ui.view = 'all';
+  match = matching();
   pruneThumbUrls();
   renderSide();
   renderMain();
   renderSelbar();
+  renderFilters();
   updateSummary();
+  applyCursor(false);
 }
 
 function updateSummary() {
   const p = ui.progress;
+  const { state } = app;
   $('#summary').textContent =
-    `${plural(state.items.length, 'tab')} stashed · ${plural(state.groups.length, 'group')}` +
-    (p ? ` · fetching thumbnails ${p.done}/${p.total}` : '');
+    `${plural(state.items.length, 'tab')} stashed · ${plural(state.groups.length, 'group')}` + (p ? ` · fetching thumbnails ${p.done}/${p.total}` : '');
+}
+
+/* ------------------------------------------------------------------ sidebar */
+
+let drag = null; // { kind: 'items', ids, from, sectionKey } | { kind: 'group', id }
+
+function navRow({ label, count, color, active, onclick, drop, indent = 0, g = null }) {
+  const row = h('div', {
+    class: 'nav' + (active ? ' active' : ''),
+    role: 'button',
+    tabindex: '0',
+    style: { paddingLeft: 8 + indent * 16 + 'px' },
+    dataset: { ...(drop ? { drop } : {}), ...(g ? { gid: g.id } : {}) },
+    draggable: g ? 'true' : null,
+    onclick,
+    onkeydown: (e) => {
+      if (e.key === 'Enter' && e.target === row) onclick();
+    },
+  });
+  const kids = g ? childGroups(app.state.groups, g.id) : [];
+  row.append(
+    ...[
+    g
+      ? kids.length
+        ? h('button', { class: 'exp' + (g.treeCollapsed ? ' closed' : ''), title: g.treeCollapsed ? 'Show subgroups' : 'Hide subgroups', onclick: (e) => { e.stopPropagation(); model.setGroupFlag(g.id, 'treeCollapsed', !g.treeCollapsed).then(refresh); } }, ic('chevron'))
+        : h('span', { class: 'exp-spacer' })
+      : null,
+    h('span', { class: 'dot', style: { background: color || 'transparent', border: color ? '' : '2px solid var(--muted)' } }),
+    h('span', { class: 'label', text: label }),
+    g && h('button', { class: 'pencil', title: 'Rename, recolour or move this group', onclick: (e) => { e.stopPropagation(); act.editGroup(g); } }, ic('edit')),
+    h('span', { class: 'n', text: count })
+    ].filter(Boolean)
+  );
+  if (g) {
+    row.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      groupMenu({ x: e.clientX, y: e.clientY }, g);
+    });
+  }
+  return row;
+}
+
+function groupMenu(anchor, g) {
+  showMenu(anchor, [
+    { label: 'Rename / recolour / move…', onClick: () => act.editGroup(g) },
+    { label: 'New subgroup…', onClick: () => act.newGroup(g.id) },
+    { sep: true },
+    { label: 'Open all tabs in this group…', onClick: () => act.openMenu(anchor, app.state.items.filter((i) => i.groupIds.includes(g.id)), g) },
+    { label: 'Delete group…', danger: true, onClick: () => act.removeGroup(g) },
+  ]);
 }
 
 function renderSide() {
+  const { state } = app;
   const side = $('#side');
-  const inGroup = new Set(state.groups.map((g) => g.id));
-  const ungrouped = state.items.filter((i) => !i.groupId || !inGroup.has(i.groupId)).length;
-  const nav = (view, label, n, color, drop) =>
-    h(
-      'button',
-      { class: 'nav' + (ui.view === view ? ' active' : ''), dataset: drop ? { drop } : {}, onclick: () => { ui.view = view; render(); } },
-      h('span', { class: 'dot', style: { background: color || 'transparent', border: color ? '' : '2px solid var(--muted)' } }),
-      h('span', { class: 'label', text: label }),
-      h('span', { class: 'n', text: n })
-    );
+  const ungrouped = state.items.filter((i) => !i.groupIds.length).length;
+  const tree = [];
+  const walk = (pid, depth) => {
+    for (const g of childGroups(state.groups, pid)) {
+      tree.push(navRow({ label: g.name, count: subtreeIds(g.id).size, color: COLOR_HEX[g.color], active: ui.view === g.id, onclick: () => setView(g.id), drop: g.id, indent: depth, g }));
+      if (!g.treeCollapsed) walk(g.id, depth + 1);
+    }
+  };
+  walk(null, 0);
   side.replaceChildren(
-    nav('all', 'All tabs', state.items.length, null),
-    nav('none', 'Ungrouped', ungrouped, '#9aa0a6', 'none'),
+    navRow({ label: 'All tabs', count: state.items.length, active: ui.view === 'all', onclick: () => setView('all') }),
+    navRow({ label: 'Ungrouped', count: ungrouped, color: '#9aa0a6', active: ui.view === 'none', onclick: () => setView('none'), drop: 'none' }),
     h('div', { class: 'side-sep' }),
-    ...state.groups.map((g) => nav(g.id, g.name, state.items.filter((i) => i.groupId === g.id).length, COLOR_HEX[g.color], g.id)),
-    h('button', { class: 'nav side-add', onclick: newGroup }, h('span', { class: 'label', text: '+ New group' }))
+    ...tree,
+    h('button', { class: 'nav side-add', onclick: () => act.newGroup(ui.view !== 'all' && ui.view !== 'none' ? ui.view : null) }, h('span', { class: 'label', text: ui.view !== 'all' && ui.view !== 'none' ? '+ New subgroup here' : '+ New group' })),
+    h('div', { class: 'side-root-drop', dataset: { rootDrop: '1' }, text: 'Drop a group here to make it top-level' })
   );
 }
 
+function setView(v) {
+  ui.view = v;
+  render();
+  window.scrollTo(0, 0);
+}
+
+/* --------------------------------------------------------------------- main */
+
 function renderMain() {
+  const { state } = app;
   const y = window.scrollY;
   const main = $('#main');
   main.replaceChildren();
   ui.order = [];
+  const seen = new Set();
+  const note = (ids) => ids.forEach((id) => !seen.has(id) && (seen.add(id), ui.order.push(id)));
 
-  if (!state.items.length) {
+  if (!state.items.length && !state.groups.length) {
     main.append(
-      h(
-        'div',
-        { class: 'welcome' },
+      h('div', { class: 'welcome' },
         h('h2', { text: 'Your stash is empty' }),
         h('p', {}, 'Click the Tab Stash button in the toolbar to stash the current tab, a whole window, or everything at once. Or press ', h('kbd', { text: 'Alt+Shift+S' }), ' to stash the tab you are on.'),
         h('p', {}, 'Stashed tabs are closed, so they use no memory at all. Come back here to search, group and reopen them.'),
         h('div', { style: { display: 'flex', gap: '10px', justifyContent: 'center' } },
           h('button', { class: 'btn primary', onclick: openPicker }, 'Choose tabs to stash…'),
-          h('button', { class: 'btn', onclick: restoreBackup }, 'Restore from backup file…'))
-      )
+          h('button', { class: 'btn', onclick: act.restoreBackup }, 'Restore from backup file…')))
     );
     return;
   }
 
-  const list = visibleItems().slice().sort(sorters[settings.sort] || sorters.newest);
-  const buckets = new Map();
-  for (const it of list) {
-    const k = it.groupId && groupOf(it.groupId) ? it.groupId : 'none';
-    if (!buckets.has(k)) buckets.set(k, []);
-    buckets.get(k).push(it);
-  }
+  const sectionEl = (g, depth) => {
+    const key = g ? g.id : 'none';
+    const own = itemsOf(key);
+    const kidEls = g ? childGroups(state.groups, g.id).map((c) => sectionEl(c, depth + 1)).filter(Boolean) : [];
+    if (filtersActive() && !own.length && !kidEls.length) return null;
+    const rootOfView = g && ui.view === g.id && depth === 0;
+    const collapsed = !rootOfView && (g ? g.collapsed : ui.noneCollapsed);
+    const name = g ? g.name : 'Ungrouped';
+    const toggle = () => {
+      if (rootOfView) return;
+      if (g) model.setGroupFlag(g.id, 'collapsed', !g.collapsed).then(refresh);
+      else {
+        ui.noneCollapsed = !ui.noneCollapsed;
+        render();
+      }
+    };
 
-  const sections = [];
-  if (ui.view === 'all') {
-    for (const g of state.groups) {
-      const items = buckets.get(g.id) || [];
-      if (items.length || !ui.query) sections.push({ g, items });
+    const ids = own.map((i) => i.id);
+    const actions = h('div', { class: 'sec-actions' });
+    if (own.length) {
+      actions.append(
+        h('button', { class: 'sbtn', title: 'Select all in this section', onclick: () => {
+          const all = ids.every((id) => ui.selected.has(id));
+          ids.forEach((id) => (all ? ui.selected.delete(id) : ui.selected.add(id)));
+          syncSelection();
+        } }, ic('select'), 'Select'),
+        h('button', { class: 'sbtn', onclick: (e) => act.openMenu(e.currentTarget, own, g) }, ic('restore'), 'Open ▾')
+      );
     }
-    const none = buckets.get('none') || [];
-    if (none.length) sections.push({ g: null, items: none });
-  } else if (ui.view === 'none') {
-    sections.push({ g: null, items: buckets.get('none') || [] });
-  } else {
-    sections.push({ g: groupOf(ui.view), items: buckets.get(ui.view) || [] });
-  }
+    if (g) {
+      actions.append(
+        h('button', { class: 'sbtn', title: 'Add a subgroup', onclick: () => act.newGroup(g.id) }, ic('plus'), 'Subgroup'),
+        h('button', { class: 'sbtn danger', title: 'Delete group', onclick: () => act.removeGroup(g) }, ic('trash'))
+      );
+    } else if (own.length > 1) {
+      actions.append(h('button', { class: 'sbtn', title: 'Create a group for every site that has 2+ tabs', onclick: act.autoGroupBySite }, ic('folder'), 'Group by site'));
+    }
 
-  if (!list.length && ui.query) {
-    main.append(h('div', { class: 'empty-hint', text: `No tabs match “${ui.query}”.` }));
+    const head = h(
+      'div',
+      { class: 'sec-head', dataset: { drop: key } },
+      h('button', { class: 'sec-toggle', title: 'Collapse / expand', onclick: toggle }, ic('chevron')),
+      h('span', { class: 'dot', style: { background: g ? COLOR_HEX[g.color] : '#9aa0a6' } }),
+      h('h2', { text: name, onclick: toggle }),
+      g && h('button', { class: 'pencil', title: 'Rename, recolour or move this group', onclick: () => act.editGroup(g) }, ic('edit')),
+      h('span', { class: 'count', text: own.length }),
+      actions
+    );
+
+    const sec = h('section', { class: 'section' + (collapsed ? ' collapsed' : '') + (depth ? ' sub' : ''), dataset: { key } }, head);
+    if (collapsed) return sec;
+    if (own.length) {
+      note(ids);
+      sec.append(h('div', { class: 'grid' }, own.map((it) => cardEl(it, key))));
+    } else if (!kidEls.length && !filtersActive()) {
+      sec.append(h('div', { class: 'empty-hint', dataset: { drop: key }, text: 'No tabs here yet. Drag cards onto this group, or use “Move to…”.' }));
+    }
+    sec.append(...kidEls);
+    return sec;
+  };
+
+  const roots = ui.view === 'all' ? childGroups(state.groups, null) : ui.view === 'none' ? [] : [groupOf(ui.view)];
+  const els = roots.map((g) => sectionEl(g, 0)).filter(Boolean);
+  if (ui.view === 'all' || ui.view === 'none') {
+    const none = sectionEl(null, 0);
+    if (none && (ui.view === 'none' || itemsOf('none').length)) els.push(none);
   }
-  for (const sec of sections) main.append(sectionEl(sec));
+  if (filtersActive() && !match.size) main.append(h('div', { class: 'empty-hint', text: ui.query ? `No tabs match “${ui.query}”${Object.values(ui.filters).some(Boolean) ? ' with these filters' : ''}.` : 'No tabs match these filters.' }));
+  main.append(...els);
   window.scrollTo(0, y);
 }
 
-function sectionEl({ g, items }) {
-  const collapsed = ui.view === 'all' && (g ? g.collapsed : ui.noneCollapsed);
-  const name = g ? g.name : 'Ungrouped';
-  const ids = items.map((i) => i.id);
-
-  const actions = h('div', { class: 'sec-actions' });
-  if (items.length) {
-    actions.append(
-      h('button', { class: 'sbtn', title: 'Select all in this section', onclick: () => {
-        const all = ids.every((id) => ui.selected.has(id));
-        ids.forEach((id) => (all ? ui.selected.delete(id) : ui.selected.add(id)));
-        syncSelection();
-      } }, ic('select'), 'Select'),
-      h('button', { class: 'sbtn', onclick: (e) => showMenu(e.currentTarget, [
-        { label: `Restore all ${items.length}`, onClick: () => restore(items) },
-        { label: 'Restore as a Chrome tab group', onClick: () => restore(items, { mode: 'group', groupTitle: name, groupColor: g?.color || 'grey' }) },
-        { label: 'Restore in a new window', onClick: () => restore(items, { mode: 'window' }) },
-        { sep: true },
-        { label: 'Copy links as Markdown', onClick: () => copyLinks(items) },
-        { label: 'Save these to a file…', onClick: () => saveBackup(items, name) },
-      ]) }, ic('restore'), 'Restore ▾')
-    );
-  }
-  if (g) {
-    actions.append(
-      h('button', { class: 'sbtn', title: 'Rename / recolour', onclick: () => editGroup(g) }, ic('edit')),
-      h('button', { class: 'sbtn danger', title: 'Delete group (tabs move to Ungrouped)', onclick: () => deleteGroup(g) }, ic('trash'))
-    );
-  } else if (items.length > 1) {
-    actions.append(h('button', { class: 'sbtn', title: 'Create a group for every site that has 2+ tabs', onclick: autoGroupByDomain }, ic('folder'), 'Group by site'));
-  }
-
-  const head = h(
-    'div',
-    { class: 'sec-head', dataset: { drop: g ? g.id : 'none' } },
-    h('button', { class: 'sec-toggle', title: 'Collapse / expand', onclick: () => ui.view === 'all' && toggleCollapse(g) }, ic('chevron')),
-    h('span', { class: 'dot', style: { background: g ? COLOR_HEX[g.color] : '#9aa0a6' } }),
-    h('h2', { text: name, onclick: () => ui.view === 'all' && toggleCollapse(g) }),
-    h('span', { class: 'count', text: items.length }),
-    actions
-  );
-
-  const sec = h('section', { class: 'section' + (collapsed ? ' collapsed' : '') }, head);
-  if (collapsed) return sec;
-  if (!items.length) {
-    sec.append(h('div', { class: 'empty-hint', text: 'No tabs here yet. Drag cards onto this group, or use “Move to…”.' }));
-    return sec;
-  }
-  ui.order.push(...ids);
-  sec.append(h('div', { class: 'grid' }, items.map(cardEl)));
-  return sec;
+function linkBadge(it) {
+  const st = it.link?.status;
+  if (!st || st === 'ok') return null;
+  const text = st === 'dead' ? 'Dead link' : st === 'blocked' ? 'Restricted' : 'Unreachable';
+  const tip = `${it.link.detail || ''} (HTTP ${it.link.code || 'no response'}), checked ${ago(it.link.checkedAt)}`.trim();
+  return h('span', { class: 'badge ' + st, title: tip, text });
 }
 
-function cardEl(it) {
+function cardEl(it, key) {
   const host = hostOf(it.url) || it.url.split(':')[0];
   const sel = ui.selected.has(it.id);
 
@@ -832,78 +409,122 @@ function cardEl(it) {
   else io.observe(img);
 
   const fav = h('img', { src: faviconFor(it.url), alt: '', onerror: (e) => e.currentTarget.remove() });
+  const others = it.groupIds.filter((g) => g !== key && groupOf(g)).map((g) => groupPath(app.state.groups, g));
 
   const card = h(
     'article',
-    { class: 'card' + (sel ? ' sel' : ''), draggable: 'true', dataset: { id: it.id }, title: it.url },
+    { class: 'card' + (sel ? ' sel' : ''), draggable: 'true', dataset: { id: it.id, key, k: `${it.id}|${key}` }, title: it.url },
     h('input', { class: 'chk', type: 'checkbox', checked: sel, title: 'Select (Shift-click for a range)', onclick: (e) => { e.stopPropagation(); toggleSelect(it.id, e.shiftKey, e.currentTarget.checked); } }),
-    h(
-      'div',
-      { class: 'acts' },
-      h('button', { class: 'act', title: 'Restore tab', onclick: (e) => { e.stopPropagation(); restore([it]); } }, ic('restore')),
-      h('button', { class: 'act', title: 'More', onclick: (e) => { e.stopPropagation(); cardMenu(e.currentTarget, it); } }, ic('more')),
-      h('button', { class: 'act danger', title: 'Delete', onclick: (e) => { e.stopPropagation(); deleteItems([it.id]); } }, ic('x'))
-    ),
-    h(
-      'div',
-      { class: 'thumb' },
-      h('div', { class: 'ph', style: { '--h': hueOf(host) } }, (host[0] || '?')),
+    h('div', { class: 'acts' },
+      h('button', { class: 'act', title: 'Open and remove from the stash', onclick: (e) => { e.stopPropagation(); act.openItems([it], { keep: false }); } }, ic('restore')),
+      h('button', { class: 'act', title: 'Open and keep in the stash', onclick: (e) => { e.stopPropagation(); act.openItems([it], { keep: true }); } }, ic('keep')),
+      h('button', { class: 'act', title: 'More', onclick: (e) => { e.stopPropagation(); cardMenu(e.currentTarget, it, key); } }, ic('more')),
+      h('button', { class: 'act danger', title: 'Delete', onclick: (e) => { e.stopPropagation(); act.deleteIds([it.id]); } }, ic('x'))),
+    h('div', { class: 'thumb' },
+      h('div', { class: 'ph', style: { '--h': hueOf(host) } }, host[0] || '?'),
       img,
-      h('div', { class: 'chip' }, fav, h('span', { text: host }))
-    ),
-    h(
-      'div',
-      { class: 'body' },
+      linkBadge(it),
+      h('div', { class: 'chip' }, fav, h('span', { text: host }))),
+    h('div', { class: 'body' },
       h('h3', { class: 'title', text: it.title || it.url }),
       it.description && h('p', { class: 'desc', text: it.description }),
       it.note && h('p', { class: 'note', text: it.note }),
-      h('div', { class: 'meta', text: `Stashed ${ago(it.addedAt)}` })
-    )
+      others.length > 0 && h('p', { class: 'also', title: others.join('\n') }, ic('tag'), h('span', { text: 'Also in ' + others.join(', ') })),
+      h('div', { class: 'meta', text: `Stashed ${ago(it.addedAt)}` }))
   );
 
   card.addEventListener('click', (e) => {
     if (e.target.closest('.act, .chk')) return;
-    if (ui.selected.size || e.shiftKey || e.ctrlKey || e.metaKey) {
-      toggleSelect(it.id, e.shiftKey);
-    } else {
-      restore([it]);
-    }
+    setCursor(card.dataset.k, false);
+    if (ui.selected.size || e.shiftKey || e.ctrlKey || e.metaKey) toggleSelect(it.id, e.shiftKey);
+    else act.clickOpen(it, e, card);
   });
   card.addEventListener('auxclick', (e) => {
     if (e.button === 1) {
       e.preventDefault();
-      restore([it], { background: true });
+      act.openItems([it], { background: true });
     }
   });
   card.addEventListener('mousedown', (e) => {
-    if (e.button === 1) e.preventDefault(); // no autoscroll on middle click
+    if (e.button === 1) e.preventDefault();
+  });
+  card.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    cardMenu({ x: e.clientX, y: e.clientY }, it, key);
   });
   card.addEventListener('dragstart', (e) => {
     const ids = ui.selected.has(it.id) ? [...ui.selected] : [it.id];
-    e.dataTransfer.setData('application/x-tab-stash', JSON.stringify(ids));
-    e.dataTransfer.effectAllowed = 'move';
+    drag = { kind: 'items', ids, from: key === 'none' ? null : key, sectionKey: key };
+    e.dataTransfer.setData('application/x-tab-stash', '1');
+    e.dataTransfer.effectAllowed = 'copyMove';
     card.classList.add('dragging');
   });
-  card.addEventListener('dragend', () => card.classList.remove('dragging'));
   return card;
 }
 
-function cardMenu(anchor, it) {
+function cardMenu(anchor, it, key) {
+  const from = key === 'none' ? null : key;
   showMenu(anchor, [
-    { label: 'Open (keep in stash)', onClick: () => restore([it], { keep: true }) },
-    { label: 'Open in new window', onClick: () => restore([it], { mode: 'window' }) },
+    { head: 'Open' },
+    { label: 'Open and remove from the stash', onClick: () => act.openItems([it], { keep: false }) },
+    { label: 'Open and keep in the stash', onClick: () => act.openItems([it], { keep: true }) },
+    { label: 'Open in new window', onClick: () => act.openItems([it], { mode: 'window' }, anchor) },
+    { sep: true },
+    { label: 'Move to…', onClick: () => act.moveMenu(anchor, ui.selected.has(it.id) ? [...ui.selected] : [it.id]) },
+    { label: 'Groups…', onClick: () => act.groupsDialog(ui.selected.has(it.id) ? [...ui.selected] : [it.id]) },
+    from && { label: `Remove from “${groupOf(from)?.name}”`, onClick: () => model.removeFromGroup([it.id], from).then(() => done('Removed from group')) },
+    { label: it.note ? 'Edit note…' : 'Add note…', onClick: () => act.noteDialog([it.id]) },
+    { label: 'Edit title…', onClick: () => act.editItemDialog(it) },
+    { sep: true },
     { label: 'Copy link', onClick: () => navigator.clipboard.writeText(it.url).then(() => toast('Link copied')) },
-    { label: 'Edit title / note…', onClick: () => editItem(it) },
-    { label: 'Diagnose thumbnail…', onClick: () => diagnose(it) },
-    { label: 'Refresh thumbnail', onClick: () => enrichMissing({ ids: [it.id], force: true }).then(() => toast('Thumbnail refreshed')) },
+    { label: 'Check this link', onClick: () => act.runLinkCheck([it]) },
+    { label: 'Refresh thumbnail', onClick: () => act.refreshThumbnails([it.id]) },
+    { label: 'Diagnose thumbnail…', onClick: () => act.diagnose(it) },
     { sep: true },
-    { head: 'Move to' },
-    { label: 'Ungrouped', onClick: () => moveItems([it.id], null) },
-    ...state.groups.map((g) => ({ label: g.name, onClick: () => moveItems([it.id], g.id) })),
-    { label: 'New group…', onClick: () => moveToNewGroup([it.id]) },
-    { sep: true },
-    { label: 'Delete', danger: true, onClick: () => deleteItems([it.id]) },
+    { label: 'Delete', danger: true, onClick: () => act.deleteIds([it.id]) },
   ]);
+}
+
+/* ------------------------------------------------------------------ filters */
+
+function renderFilters() {
+  const f = ui.filters;
+  if (document.activeElement !== $('#fSite')) $('#fSite').value = f.site;
+  $('#fAge').value = String(f.age);
+  $('#fNote').checked = f.note;
+  $('#fLink').value = f.link;
+  $('#fClear').hidden = !(f.site || f.age || f.note || f.link);
+  // sites for autocomplete, most common first
+  const counts = new Map();
+  for (const it of app.state.items) counts.set(hostOf(it.url), (counts.get(hostOf(it.url)) || 0) + 1);
+  const hosts = [...counts].filter(([hh]) => hh).sort((a, b) => b[1] - a[1]).slice(0, 80);
+  $('#siteList').replaceChildren(...hosts.map(([hh, n]) => h('option', { value: hh, label: `${n} tabs` })));
+}
+
+app.syncFilters = () => render();
+
+function bindFilters() {
+  let t;
+  $('#fSite').addEventListener('input', (e) => {
+    clearTimeout(t);
+    t = setTimeout(() => { ui.filters.site = e.target.value.trim(); scheduleRender(); }, 150);
+  });
+  $('#fAge').addEventListener('change', (e) => { ui.filters.age = Number(e.target.value); render(); });
+  $('#fNote').addEventListener('change', (e) => { ui.filters.note = e.target.checked; render(); });
+  $('#fLink').addEventListener('change', (e) => { ui.filters.link = e.target.value; render(); });
+  $('#fClear').addEventListener('click', () => { ui.filters = { site: '', age: 0, note: false, link: '' }; render(); });
+  $('#selectBtn').addEventListener('click', (e) => {
+    const shown = viewIds();
+    const everything = [...match];
+    showMenu(e.currentTarget, [
+      { label: `Select all shown (${shown.length})`, onClick: () => { shown.forEach((id) => ui.selected.add(id)); syncSelection(); } },
+      everything.length !== shown.length || filtersActive()
+        ? { label: `Select all ${everything.length} matching ${filtersActive() ? 'this search / these filters' : 'in the stash'}`, onClick: () => { everything.forEach((id) => ui.selected.add(id)); syncSelection(); } }
+        : null,
+      { label: 'Invert selection', onClick: () => { for (const id of shown) ui.selected.has(id) ? ui.selected.delete(id) : ui.selected.add(id); syncSelection(); } },
+      { label: 'Select none', onClick: clearSelection },
+    ]);
+  });
 }
 
 /* ---------------------------------------------------------------- selection */
@@ -945,27 +566,198 @@ function renderSelbar() {
   bar.hidden = n === 0;
   if (!n) return;
   const tb = (label, icon, onclick, cls = '') => h('button', { class: 'tb ' + cls, onclick }, ic(icon), h('span', { text: label }));
-  const items = () => [...ui.selected].map(byId).filter(Boolean);
+  const ids = () => [...ui.selected];
   bar.replaceChildren(
     h('span', { class: 'sel-count', text: `${n} selected` }),
-    tb('Restore', 'restore', () => restoreSelected('tabs')),
-    tb('As tab group', 'folder', () => restoreSelected('group')),
-    tb('New window', 'window', () => restoreSelected('window')),
-    tb('Move to…', 'folder', (e) => moveMenu(e.currentTarget, [...ui.selected])),
-    tb('Copy links', 'link', () => copyLinks(items())),
-    tb('Save to file', 'folder', () => saveBackup(items(), 'selection')),
-    tb('Delete', 'trash', () => deleteItems([...ui.selected]), 'danger'),
+    tb('Open ▾', 'restore', (e) => act.openMenu(e.currentTarget, selectedItems(), commonGroup(selectedItems()))),
+    tb('Move to…', 'folder', (e) => act.moveMenu(e.currentTarget, ids())),
+    tb('Groups…', 'tag', () => act.groupsDialog(ids())),
+    tb('Add note…', 'note', () => act.noteDialog(ids())),
+    tb('Delete', 'trash', () => act.deleteIds(ids()), 'danger'),
+    tb('More ▾', 'more', (e) => showMenu(e.currentTarget, [
+      { label: 'Copy links as Markdown', onClick: () => act.copyLinks(selectedItems()) },
+      { label: 'Save these to a file…', onClick: () => act.saveBackup(selectedItems(), 'selection') },
+      { label: 'Check these links', onClick: () => act.runLinkCheck(selectedItems()) },
+      { label: 'Refresh thumbnails', onClick: () => act.refreshThumbnails(ids()) },
+      { label: 'Group by site', onClick: act.autoGroupBySite },
+      { label: 'Triage these…', onClick: () => triage(ids()) },
+    ])),
     h('button', { class: 'tb x', title: 'Clear selection (Esc)', onclick: clearSelection }, ic('x'))
   );
 }
 
-/* ---------------------------------------------------------- header + events */
+function commonGroup(items) {
+  const gs = new Set(items.map((i) => i.groupIds[0] || ''));
+  return gs.size === 1 ? groupOf([...gs][0]) : null;
+}
+
+/* ----------------------------------------------------------- keyboard cursor */
+
+function setCursor(k, scroll = true) {
+  ui.cursor = k;
+  applyCursor(scroll);
+}
+
+function applyCursor(scroll) {
+  for (const c of document.querySelectorAll('.card.kbd')) c.classList.remove('kbd');
+  if (!ui.cursor) return;
+  const card = [...document.querySelectorAll('.card')].find((c) => c.dataset.k === ui.cursor);
+  if (!card) return;
+  card.classList.add('kbd');
+  if (scroll) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function moveCursor(dir) {
+  const cards = [...document.querySelectorAll('.card')];
+  if (!cards.length) return;
+  const cur = cards.find((c) => c.dataset.k === ui.cursor);
+  if (!cur) return setCursor(cards[0].dataset.k);
+  const i = cards.indexOf(cur);
+  if (dir === 'left' || dir === 'right') return setCursor(cards[Math.max(0, Math.min(cards.length - 1, i + (dir === 'right' ? 1 : -1)))].dataset.k);
+  const r = cur.getBoundingClientRect();
+  const cx = r.left + r.width / 2;
+  let best = null;
+  let bestScore = Infinity;
+  for (const c of cards) {
+    if (c === cur) continue;
+    const b = c.getBoundingClientRect();
+    const dy = b.top - r.top;
+    if (dir === 'down' ? dy <= 5 : dy >= -5) continue;
+    const score = Math.abs(dy) * 1000 + Math.abs(b.left + b.width / 2 - cx);
+    if (score < bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  if (best) setCursor(best.dataset.k);
+}
+
+const cursorItem = () => byId((ui.cursor || '').split('|')[0]);
+const targetIds = () => (ui.selected.size ? [...ui.selected] : cursorItem() ? [cursorItem().id] : []);
+
+/* --------------------------------------------------------------- drag & drop */
+
+function clearMarks() {
+  for (const el of document.querySelectorAll('.drop-over, .drop-before, .drop-after, .zone-before, .zone-after, .zone-inside')) {
+    el.classList.remove('drop-over', 'drop-before', 'drop-after', 'zone-before', 'zone-after', 'zone-inside');
+  }
+}
+
+const zoneOf = (e, el) => {
+  const r = el.getBoundingClientRect();
+  const y = (e.clientY - r.top) / r.height;
+  return y < 0.28 ? 'before' : y > 0.72 ? 'after' : 'inside';
+};
+
+document.addEventListener('dragover', (e) => {
+  if (!drag) return;
+  clearMarks();
+  if (drag.kind === 'items') {
+    const card = e.target.closest?.('.card');
+    if (card && card.dataset.key === drag.sectionKey && !drag.ids.includes(card.dataset.id)) {
+      const r = card.getBoundingClientRect();
+      card.classList.add(e.clientX > r.left + r.width / 2 ? 'drop-after' : 'drop-before');
+      e.preventDefault();
+      return;
+    }
+    const t = e.target.closest?.('[data-drop]');
+    if (t) {
+      t.classList.add('drop-over');
+      e.dataTransfer.dropEffect = e.ctrlKey || e.altKey ? 'copy' : 'move';
+      e.preventDefault();
+    }
+  } else if (drag.kind === 'group') {
+    const row = e.target.closest?.('.nav[data-gid]');
+    if (row && row.dataset.gid !== drag.id && !descendantIds(app.state.groups, drag.id).includes(row.dataset.gid)) {
+      row.classList.add('zone-' + zoneOf(e, row));
+      e.preventDefault();
+    } else if (e.target.closest?.('[data-root-drop]')) {
+      e.target.closest('[data-root-drop]').classList.add('drop-over');
+      e.preventDefault();
+    }
+  }
+});
+
+document.addEventListener('drop', async (e) => {
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  const copy = e.ctrlKey || e.altKey;
+  const markedCard = document.querySelector('.card.drop-before, .card.drop-after');
+  const markedRow = document.querySelector('.nav[class*="zone-"]');
+  const zone = markedRow && ['before', 'after', 'inside'].find((z) => markedRow.classList.contains('zone-' + z));
+  const rootDrop = e.target.closest?.('[data-root-drop]');
+  const target = e.target.closest?.('[data-drop]');
+  clearMarks();
+  if (d.kind === 'items') {
+    if (markedCard) {
+      e.preventDefault();
+      return reorder(d, markedCard.dataset.id, markedCard.classList.contains('drop-after'));
+    }
+    if (target) {
+      e.preventDefault();
+      const gid = target.dataset.drop === 'none' ? null : target.dataset.drop;
+      return act.moveTo(d.ids, gid, { from: d.from, copy });
+    }
+  } else if (d.kind === 'group') {
+    e.preventDefault();
+    if (markedRow) {
+      const t = groupOf(markedRow.dataset.gid);
+      if (!t) return;
+      const op = zone === 'inside' ? { parentId: t.id } : zone === 'before' ? { parentId: t.parentId, beforeId: t.id } : { parentId: t.parentId, afterId: t.id };
+      await model.moveGroup(d.id, op);
+      return done();
+    }
+    if (rootDrop) {
+      await model.moveGroup(d.id, { parentId: null });
+      return done();
+    }
+  }
+});
+
+document.addEventListener('dragend', () => {
+  drag = null;
+  document.body.classList.remove('dragging-group');
+  clearMarks();
+  document.querySelectorAll('.dragging').forEach((c) => c.classList.remove('dragging'));
+});
+
+// Group rows in the sidebar start group drags.
+document.addEventListener('dragstart', (e) => {
+  const row = e.target.closest?.('.nav[data-gid]');
+  if (!row) return;
+  drag = { kind: 'group', id: row.dataset.gid };
+  document.body.classList.add('dragging-group');
+  e.dataTransfer.setData('application/x-tab-stash-group', row.dataset.gid);
+  e.dataTransfer.effectAllowed = 'move';
+});
+
+async function reorder(d, targetId, after) {
+  const key = d.sectionKey;
+  const moving = new Set(d.ids.filter((id) => inSection(byId(id) || { groupIds: [] }, key)));
+  if (!moving.size) return;
+  const order = itemsOf(key, true).map((i) => i.id);
+  const movingInOrder = order.filter((id) => moving.has(id));
+  const rest = order.filter((id) => !moving.has(id));
+  let at = rest.indexOf(targetId);
+  if (at < 0) return;
+  if (after) at++;
+  rest.splice(at, 0, ...movingInOrder);
+  if (app.settings.sort !== 'manual') {
+    app.settings = await saveSettings({ sort: 'manual' });
+    $('#sort').value = 'manual';
+  }
+  await model.setOrder(key, rest);
+  await done('Order changed');
+}
+
+/* ------------------------------------------------------------ header & menus */
 
 async function openPicker() {
   const dlg = $('#dlgPick');
   const close = () => dlg.open && dlg.close();
   await mountPicker($('#pickRoot'), {
-    groups: state.groups,
+    groups: app.state.groups,
     onCancel: close,
     onDone: (res) => {
       close();
@@ -989,126 +781,78 @@ function stashMenu(anchor) {
   ]);
 }
 
+function triage(ids) {
+  startTriage(ids?.length ? ids : ui.selected.size ? [...ui.selected] : ui.order.slice(), {
+    open: async (it, keep) => {
+      await restoreItems([it], { keep: true });
+      if (!keep) await model.deleteItems([it.id], 'open');
+    },
+    note: (id) => act.noteDialog([id]),
+  });
+}
+
 function toolsMenu(anchor) {
   showMenu(anchor, [
-    { label: 'Group ungrouped tabs by site', onClick: autoGroupByDomain },
-    { label: 'Remove duplicate links', onClick: removeDuplicates },
-    { label: 'Fetch missing thumbnails now', onClick: fetchThumbsNow },
-    { label: 'Select all (Ctrl/⌘ A)', onClick: () => { ui.order.forEach((id) => ui.selected.add(id)); syncSelection(); } },
+    { label: 'Undo last change (Ctrl+Z)', onClick: doUndo },
     { sep: true },
-    { label: 'Back up stash to a file…', onClick: () => saveBackup() },
-    { label: 'Restore from a backup file…', onClick: restoreBackup },
-    { label: 'Export as Markdown', onClick: exportMarkdown },
+    { label: 'Triage: go through tabs one by one', onClick: () => triage() },
+    { label: ui.selected.size ? 'Check links of selected tabs' : 'Check all links for dead pages', onClick: () => act.runLinkCheck(ui.selected.size ? selectedItems() : app.state.items) },
+    { label: 'Group ungrouped tabs by site', onClick: act.autoGroupBySite },
+    { label: 'Merge duplicate links', onClick: act.mergeDuplicates },
+    { label: 'Fetch missing thumbnails now', onClick: act.fetchThumbsNow },
+    { sep: true },
+    { label: 'Back up stash to a file…', onClick: () => act.saveBackup() },
+    { label: 'Restore from a backup file…', onClick: act.restoreBackup },
+    { label: 'Export as Markdown', onClick: act.exportMarkdown },
     { label: 'Import a plain list of links…', onClick: () => $('#importFile').click() },
+    { label: 'Safety snapshots…', onClick: () => openSnapshots() },
     { sep: true },
-    { label: 'Settings…', onClick: openSettings },
+    { label: 'Keyboard shortcuts', onClick: () => $('#dlgHelp').showModal() },
+    { label: 'Settings…', onClick: () => openSettings({ onSaved: () => { applySettings(); scheduleRender(); } }) },
   ]);
 }
 
-let searchTimer;
-$('#q').addEventListener('input', (e) => {
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => {
-    ui.query = e.target.value.trim();
-    scheduleRender();
-  }, 120);
-});
-$('#sort').addEventListener('change', async (e) => {
-  settings = await saveSettings({ sort: e.target.value });
-  scheduleRender();
-});
-$('#size').addEventListener('input', (e) => document.documentElement.style.setProperty('--card', e.target.value + 'px'));
-$('#size').addEventListener('change', async (e) => {
-  settings = await saveSettings({ cardSize: Number(e.target.value) });
-});
-$('#stashBtn').addEventListener('click', (e) => stashMenu(e.currentTarget));
-$('#toolsBtn').addEventListener('click', (e) => toolsMenu(e.currentTarget));
-$('#importFile').addEventListener('change', async (e) => {
-  const f = e.target.files[0];
-  e.target.value = '';
-  if (f) await importFile(f);
-});
-
-// drag & drop onto sidebar entries / section headers
-document.addEventListener('dragover', (e) => {
-  const t = e.target.closest?.('[data-drop]');
-  document.querySelectorAll('.drop-over').forEach((el) => el !== t && el.classList.remove('drop-over'));
-  if (t && e.dataTransfer.types.includes('application/x-tab-stash')) {
-    e.preventDefault();
-    t.classList.add('drop-over');
-  }
-});
-document.addEventListener('dragleave', (e) => {
-  if (!e.relatedTarget) document.querySelectorAll('.drop-over').forEach((el) => el.classList.remove('drop-over'));
-});
-document.addEventListener('drop', (e) => {
-  const t = e.target.closest?.('[data-drop]');
-  document.querySelectorAll('.drop-over').forEach((el) => el.classList.remove('drop-over'));
-  const raw = e.dataTransfer.getData('application/x-tab-stash');
-  if (!t || !raw) return;
-  e.preventDefault();
-  const target = t.dataset.drop === 'none' ? null : t.dataset.drop;
-  moveItems(JSON.parse(raw), target);
-});
-
-// keyboard
-const typing = (e) => /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
-document.addEventListener('keydown', (e) => {
-  if (document.querySelector('dialog[open]')) return;
-  if (e.key === '/' && !typing(e)) {
-    e.preventDefault();
-    $('#q').focus();
-  } else if (e.key === 'Escape') {
-    closeMenu();
-    if (document.activeElement === $('#q')) $('#q').blur();
-    else clearSelection();
-  } else if ((e.key === 'Delete' || e.key === 'Backspace') && !typing(e) && ui.selected.size) {
-    e.preventDefault();
-    deleteItems([...ui.selected]);
-  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && !typing(e)) {
-    e.preventDefault();
-    ui.order.forEach((id) => ui.selected.add(id));
-    syncSelection();
-  }
-});
-
-// live updates when the background worker (or another stash tab) changes the data
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area !== 'local') return;
-  if (changes.state) {
-    refresh();
-    scheduleEnrich();
-  }
-  if (changes.settings) getSettings().then((s) => { settings = s; applySettings(); scheduleRender(); });
-});
-
-function applySettings() {
-  document.documentElement.style.setProperty('--card', settings.cardSize + 'px');
-  $('#size').value = settings.cardSize;
-  $('#sort').value = settings.sort;
-}
-
-$('#copyHome').addEventListener('click', (e) => {
-  const btn = e.currentTarget;
-  navigator.clipboard.writeText(STASH_PAGE).then(() => {
-    btn.textContent = 'Copied ✓';
-    setTimeout(() => (btn.textContent = 'Copy'), 2000);
+function bindHeader() {
+  let timer;
+  $('#q').addEventListener('input', (e) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      ui.query = e.target.value.trim();
+      scheduleRender();
+    }, 120);
   });
-});
-$('#openStartup').addEventListener('click', () => chrome.tabs.create({ url: 'chrome://settings/onStartup' }));
-$('#openAppearance').addEventListener('click', () => chrome.tabs.create({ url: 'chrome://settings/appearance' }));
-$('#homeUrl').addEventListener('focus', (e) => e.target.select());
-
-function showText(title, text) {
-  $('#changesTitle').textContent = title;
-  $('#changesText').textContent = text;
-  $('#dlgChanges').showModal();
-}
-
-async function diagnose(item) {
-  toast('Checking…');
-  showText('Thumbnail diagnosis', await diagnoseThumbnail(item));
-  hideToast();
+  $('#sort').addEventListener('change', async (e) => {
+    app.settings = await saveSettings({ sort: e.target.value });
+    scheduleRender();
+  });
+  $('#size').addEventListener('input', (e) => document.documentElement.style.setProperty('--card', e.target.value + 'px'));
+  $('#size').addEventListener('change', async (e) => {
+    app.settings = await saveSettings({ cardSize: Number(e.target.value) });
+  });
+  $('#stashBtn').addEventListener('click', (e) => stashMenu(e.currentTarget));
+  $('#toolsBtn').addEventListener('click', (e) => toolsMenu(e.currentTarget));
+  $('#triageBtn').addEventListener('click', () => triage());
+  $('#importFile').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (f) await act.importFile(f);
+  });
+  $('#copyHome').addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    navigator.clipboard.writeText(STASH_PAGE).then(() => {
+      btn.textContent = 'Copied ✓';
+      setTimeout(() => (btn.textContent = 'Copy'), 2000);
+    });
+  });
+  $('#openStartup').addEventListener('click', () => chrome.tabs.create({ url: 'chrome://settings/onStartup' }));
+  $('#openAppearance').addEventListener('click', () => chrome.tabs.create({ url: 'chrome://settings/appearance' }));
+  $('#homeUrl').addEventListener('focus', (e) => e.target.select());
+  $('#whatsNew').addEventListener('click', showChanges);
+  $('#reloadExt').addEventListener('click', () => chrome.runtime.reload());
+  $('#abChoose').addEventListener('click', async () => { await act.chooseBackupFile(); refreshAutobackupStatus(); });
+  $('#abNow').addEventListener('click', async () => { await act.runAutobackup({ force: true, click: true }); refreshAutobackupStatus(); });
+  $('#abOff').addEventListener('click', async () => { await act.turnOffBackup(); refreshAutobackupStatus(); });
+  $('#snapOpen').addEventListener('click', () => { $('#dlgSettings').close('cancel'); openSnapshots(); });
 }
 
 async function showChanges() {
@@ -1120,35 +864,125 @@ async function showChanges() {
   }
   showText("What's new", text);
 }
-$('#whatsNew').addEventListener('click', showChanges);
-$('#reloadExt').addEventListener('click', () => chrome.runtime.reload());
+
+function applySettings() {
+  document.documentElement.style.setProperty('--card', app.settings.cardSize + 'px');
+  $('#size').value = app.settings.cardSize;
+  $('#sort').value = app.settings.sort;
+}
+
+/* ------------------------------------------------------------------ keyboard */
+
+const typing = (e) => /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
+
+document.addEventListener('keydown', (e) => {
+  if (document.querySelector('dialog[open]') || document.body.classList.contains('triaging')) return;
+  const mod = e.ctrlKey || e.metaKey;
+  if (typing(e)) {
+    if (e.key === 'Escape' && e.target.id === 'q') e.target.blur();
+    return;
+  }
+  const k = e.key;
+  if (mod && k.toLowerCase() === 'z') { e.preventDefault(); doUndo(); }
+  else if (mod && k.toLowerCase() === 'a') { e.preventDefault(); viewIds().forEach((id) => ui.selected.add(id)); syncSelection(); }
+  else if (mod || e.altKey) return;
+  else if (k === '/') { e.preventDefault(); $('#q').focus(); }
+  else if (k === '?') $('#dlgHelp').showModal();
+  else if (k === 'Escape') { closeMenu(); if (ui.selected.size) clearSelection(); else { ui.cursor = null; applyCursor(false); } }
+  else if (k === 'ArrowLeft') { e.preventDefault(); moveCursor('left'); }
+  else if (k === 'ArrowRight') { e.preventDefault(); moveCursor('right'); }
+  else if (k === 'ArrowUp') { e.preventDefault(); moveCursor('up'); }
+  else if (k === 'ArrowDown') { e.preventDefault(); moveCursor('down'); }
+  else if (k === 'Enter') {
+    const it = cursorItem();
+    if (!it) return;
+    e.preventDefault();
+    const mode = app.settings.openMode;
+    act.openItems([it], e.shiftKey && mode !== 'ask' ? { keep: mode !== 'keep' } : {}, document.querySelector('.card.kbd'));
+  }
+  else if (k === 'x' || k === ' ') { const it = cursorItem(); if (it) { e.preventDefault(); toggleSelect(it.id); } }
+  else if (k === 'Delete' || k === 'Backspace') { const ids = targetIds(); if (ids.length) { e.preventDefault(); act.deleteIds(ids); } }
+  else if (k === 'm') { const ids = targetIds(); if (ids.length) act.moveMenu(document.querySelector('.card.kbd') || document.body, ids); }
+  else if (k === 'g') act.groupsDialog(targetIds());
+  else if (k === 'n') { e.preventDefault(); act.noteDialog(targetIds()); }
+  else if (k === 'e') { const it = cursorItem(); if (it) { e.preventDefault(); act.editItemDialog(it); } }
+  else if (k === 't') triage();
+});
+
+/* --------------------------------------------------- other stash pages / sync */
+
+let multiTimer;
+async function checkOtherPages() {
+  try {
+    if (chrome.runtime.getManifest().chrome_url_overrides?.newtab) return setBanner('multi', null); // new-tab mode: many pages are normal
+    const me = await chrome.tabs.getCurrent();
+    const tabs = (await chrome.tabs.query({ url: STASH_PAGE + '*' })).filter((t) => t.id !== me?.id);
+    if (!tabs.length) return setBanner('multi', null);
+    if (Number(sessionStorage.getItem('multiDismissed')) >= tabs.length) return;
+    setBanner(
+      'multi',
+      h('div', { class: 'banner' },
+        h('span', { text: `Tab Stash is also open in ${tabs.length === 1 ? 'another tab' : tabs.length + ' other tabs'}. Both stay in sync automatically.` }),
+        h('button', { class: 'btn small', text: 'Go there', onclick: () => { chrome.tabs.update(tabs[0].id, { active: true }); chrome.windows.update(tabs[0].windowId, { focused: true }); } }),
+        h('button', { class: 'btn small', text: tabs.length === 1 ? 'Close the other one' : 'Close the others', onclick: () => chrome.tabs.remove(tabs.map((t) => t.id)) }),
+        h('button', { class: 'btn small', text: 'Dismiss', onclick: () => { sessionStorage.setItem('multiDismissed', tabs.length); setBanner('multi', null); } }))
+    );
+  } catch {
+    /* tabs API unavailable */
+  }
+}
+const checkOtherSoon = () => {
+  clearTimeout(multiTimer);
+  multiTimer = setTimeout(checkOtherPages, 400);
+};
+chrome.tabs.onCreated.addListener(checkOtherSoon);
+chrome.tabs.onRemoved.addListener(checkOtherSoon);
+chrome.tabs.onUpdated.addListener((id, info) => info.url && checkOtherSoon());
+
+// live updates when the background worker (or another stash page) changes the data
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  if (changes.state) {
+    refresh();
+    scheduleEnrich();
+    act.backupSoon();
+  }
+  if (changes.settings) getSettings().then((s) => { app.settings = s; applySettings(); scheduleRender(); });
+});
+
+/* ---------------------------------------------------------------------- boot */
 
 function checkHash() {
   if (location.hash === '#settings') {
     history.replaceState(null, '', location.pathname);
-    openSettings();
+    openSettings({ onSaved: () => { applySettings(); scheduleRender(); } });
+  } else if (location.hash === '#triage') {
+    history.replaceState(null, '', location.pathname);
+    triage();
   }
 }
 addEventListener('hashchange', checkHash);
 
-/* -------------------------------------------------------------------- boot */
+new ResizeObserver(() => document.documentElement.style.setProperty('--topH', $('#topwrap').offsetHeight + 'px')).observe($('#topwrap'));
+
+async function announceUpdate() {
+  const { updatedFrom } = await chrome.storage.local.get('updatedFrom');
+  if (!updatedFrom) return;
+  await chrome.storage.local.remove('updatedFrom');
+  toast(`Tab Stash updated ${updatedFrom} → ${chrome.runtime.getManifest().version}`, { label: "What's new", onClick: showChanges });
+}
 
 (async function boot() {
-  settings = await getSettings();
+  bindHeader();
+  bindFilters();
+  app.settings = await getSettings();
   applySettings();
-  state = await getState();
+  app.state = await getState();
   render();
   gcThumbs();
   checkHash();
   announceUpdate();
   scheduleEnrich(600);
+  checkOtherPages();
+  act.startBackupTimers();
 })();
-
-// After an update, tell the user once and offer the changelog.
-async function announceUpdate() {
-  const { updatedFrom } = await chrome.storage.local.get('updatedFrom');
-  if (!updatedFrom) return;
-  await chrome.storage.local.remove('updatedFrom');
-  const now = chrome.runtime.getManifest().version;
-  toast(`Tab Stash updated ${updatedFrom} → ${now}`, { label: "What's new", onClick: showChanges });
-}

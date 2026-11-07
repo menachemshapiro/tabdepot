@@ -169,9 +169,9 @@ export function setOrder(key, ids) {
 
 // ---------------- items ----------------
 
-export function deleteItems(ids) {
+export function deleteItems(ids, label = 'delete') {
   const set = new Set(ids);
-  return perform('delete', (state) => {
+  return perform(label, (state) => {
     const removed = state.items.filter((i) => set.has(i.id)).map((i) => structuredClone(i));
     state.items = state.items.filter((i) => !set.has(i.id));
     return {
@@ -186,7 +186,7 @@ export function deleteItems(ids) {
           }
         : null,
     };
-  }, { snapshot: ids.length >= 5 });
+  }, { snapshot: label === 'delete' && ids.length >= 5 });
 }
 
 export function editItem(id, patch) {

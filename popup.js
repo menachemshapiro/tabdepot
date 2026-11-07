@@ -1,4 +1,4 @@
-import { getState, hostOf } from './common.js';
+import { getState, hostOf, flattenGroups } from './common.js';
 import { tabsForScope } from './core.js';
 import { mountPicker } from './picker.js';
 
@@ -12,7 +12,7 @@ async function init() {
 
   const opt = (value, text) => Object.assign(document.createElement('option'), { value, textContent: text });
   groupSel.append(opt('', 'Ungrouped (or keep Chrome groups)'));
-  for (const g of groups) groupSel.append(opt(g.id, g.name));
+  for (const { group, depth } of flattenGroups(groups)) groupSel.append(opt(group.id, '\u00a0\u00a0'.repeat(depth) + (depth ? '↳ ' : '') + group.name));
   groupSel.append(opt('__new', '+ New group…'));
   groupSel.addEventListener('change', () => {
     newGroup.hidden = groupSel.value !== '__new';

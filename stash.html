@@ -9,29 +9,61 @@
   <link rel="stylesheet" href="picker.css">
 </head>
 <body>
-  <header class="top">
-    <div class="brand">
-      <img src="icons/icon48.png" alt="">
-      <div>
-        <h1>Tab Stash</h1>
-        <span id="summary"></span>
+  <div class="topwrap" id="topwrap">
+    <header class="top">
+      <div class="brand">
+        <img src="icons/icon48.png" alt="">
+        <div>
+          <h1>Tab Stash</h1>
+          <span id="summary"></span>
+        </div>
       </div>
+      <div class="search"><input id="q" type="search" placeholder="Search titles, links, notes…   ( / )" autocomplete="off"></div>
+      <div class="tools">
+        <select id="sort" title="Sort">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="title">Title A–Z</option>
+          <option value="domain">Site A–Z</option>
+          <option value="manual">Manual (drag to reorder)</option>
+        </select>
+        <label class="size" title="Card size"><input id="size" type="range" min="200" max="480" step="10"></label>
+        <button id="triageBtn" class="btn" title="Go through the tabs one at a time (T)">Triage</button>
+        <button id="stashBtn" class="btn primary">Stash tabs ▾</button>
+        <button id="toolsBtn" class="btn" title="More">⋯</button>
+      </div>
+    </header>
+    <div class="filters" id="filters">
+      <label>Site <input id="fSite" list="siteList" placeholder="any" autocomplete="off"></label>
+      <datalist id="siteList"></datalist>
+      <label>Stashed
+        <select id="fAge">
+          <option value="0">any time</option>
+          <option value="7">more than a week ago</option>
+          <option value="30">more than 30 days ago</option>
+          <option value="90">more than 90 days ago</option>
+          <option value="365">more than a year ago</option>
+        </select>
+      </label>
+      <label class="chk-inline"><input type="checkbox" id="fNote"> Has a note</label>
+      <label>Link
+        <select id="fLink">
+          <option value="">any</option>
+          <option value="bad">dead / unreachable</option>
+          <option value="dead">dead</option>
+          <option value="blocked">restricted</option>
+          <option value="error">unreachable</option>
+          <option value="ok">working</option>
+          <option value="unchecked">not checked</option>
+        </select>
+      </label>
+      <button class="btn small" id="fClear" hidden>Clear filters</button>
+      <span class="spacer"></span>
+      <button class="btn small" id="selectBtn">Select ▾</button>
     </div>
-    <div class="search"><input id="q" type="search" placeholder="Search titles, links, notes…   ( / )" autocomplete="off"></div>
-    <div class="tools">
-      <select id="sort" title="Sort">
-        <option value="newest">Newest first</option>
-        <option value="oldest">Oldest first</option>
-        <option value="title">Title A–Z</option>
-        <option value="domain">Site A–Z</option>
-      </select>
-      <label class="size" title="Card size"><input id="size" type="range" min="200" max="480" step="10"></label>
-      <button id="stashBtn" class="btn primary">Stash tabs ▾</button>
-      <button id="toolsBtn" class="btn" title="More">⋯</button>
-    </div>
-  </header>
-
-  <div id="selbar" hidden></div>
+    <div id="banner"></div>
+    <div id="selbar" hidden></div>
+  </div>
 
   <div class="layout">
     <aside id="side"></aside>
@@ -39,12 +71,14 @@
   </div>
 
   <div id="toast" hidden></div>
+  <div id="triage" hidden></div>
   <input type="file" id="importFile" accept=".json,.txt,application/json,text/plain" hidden>
 
   <dialog id="dlgGroup">
     <form method="dialog">
       <h3 id="gTitle">New group</h3>
       <label>Name<input id="gName" required maxlength="60" autocomplete="off"></label>
+      <label>Inside<select id="gParent"></select></label>
       <div class="field"><span>Colour</span><div id="gColors" class="swatches"></div></div>
       <menu>
         <button value="cancel" class="btn" formnovalidate>Cancel</button>
@@ -58,12 +92,61 @@
       <h3>Edit tab</h3>
       <label>Title<input id="iTitle" required maxlength="300" autocomplete="off"></label>
       <label>Note<textarea id="iNote" rows="3" maxlength="1000" placeholder="Why did you keep this?"></textarea></label>
-      <label>Group<select id="iGroup"></select></label>
       <p id="iUrl" class="url"></p>
       <menu>
         <button value="cancel" class="btn" formnovalidate>Cancel</button>
         <button value="ok" class="btn primary">Save</button>
       </menu>
+    </form>
+  </dialog>
+
+  <dialog id="dlgNote">
+    <form method="dialog">
+      <h3 id="nTitle">Add a note</h3>
+      <label><textarea id="nText" rows="4" maxlength="1000" placeholder="Why did you keep this? What to do with it?"></textarea></label>
+      <label class="row" id="nAppendRow"><input type="checkbox" id="nAppend"> Add to existing notes instead of replacing them</label>
+      <menu>
+        <button value="cancel" class="btn" formnovalidate>Cancel</button>
+        <button value="ok" class="btn primary">Save</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="dlgGroups" class="wide">
+    <form method="dialog">
+      <h3 id="ggTitle">Groups</h3>
+      <p class="hint">A tab can be in several groups at once. Tick to add, untick to remove; a dash means only some of the selected tabs are in it.</p>
+      <div id="ggList" class="gg-list"></div>
+      <button type="button" class="pk-link" id="ggNew">+ New group…</button>
+      <menu>
+        <button value="cancel" class="btn" formnovalidate>Cancel</button>
+        <button value="ok" class="btn primary">Apply</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="dlgSnap" class="wide">
+    <div id="snapRoot"></div>
+  </dialog>
+
+  <dialog id="dlgHelp">
+    <form method="dialog">
+      <h3>Keyboard shortcuts</h3>
+      <table class="keys">
+        <tr><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td>Move between cards</td></tr>
+        <tr><td><kbd>Enter</kbd></td><td>Open the card (as in Settings); <kbd>Shift</kbd>+<kbd>Enter</kbd> does the opposite (keep / remove)</td></tr>
+        <tr><td><kbd>x</kbd> or <kbd>Space</kbd></td><td>Select / unselect</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>A</kbd></td><td>Select everything shown</td></tr>
+        <tr><td><kbd>Delete</kbd></td><td>Delete the selection (or the highlighted card)</td></tr>
+        <tr><td><kbd>m</kbd> / <kbd>g</kbd></td><td>Move to… / Groups…</td></tr>
+        <tr><td><kbd>n</kbd> / <kbd>e</kbd></td><td>Add a note / edit title</td></tr>
+        <tr><td><kbd>t</kbd></td><td>Triage mode (one tab at a time)</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo the last change</td></tr>
+        <tr><td><kbd>/</kbd></td><td>Search</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Clear selection / close</td></tr>
+      </table>
+      <p class="hint">Drag cards onto a group in the side panel to move them (hold <kbd>Ctrl</kbd> or <kbd>Alt</kbd> to add them to that group as well). Drag groups to reorder them, or onto the middle of another group to nest them.</p>
+      <menu><button value="ok" class="btn primary">Close</button></menu>
     </form>
   </dialog>
 
@@ -77,9 +160,31 @@
       <label class="row"><input type="checkbox" id="sDedupe"> Don't store the same link twice</label>
       <label class="row"><input type="checkbox" id="sFetch"> After stashing, fetch thumbnails from the web (YouTube thumbnails and each page's preview image; no tabs are touched)</label>
       <label class="row"><input type="checkbox" id="sCapture"> Also screenshot tabs by visiting them (slow, and can start videos playing)</label>
-      <label class="row"><input type="checkbox" id="sKeep"> Keep a tab in the stash after opening it</label>
+      <label>When I click a card
+        <select id="sOpenMode">
+          <option value="remove">Open it and remove it from the stash</option>
+          <option value="keep">Open it and keep it in the stash</option>
+          <option value="ask">Ask me each time</option>
+        </select>
+      </label>
+      <p class="hint">Whatever you pick, each card also has “Open &amp; remove” and “Open &amp; keep” buttons, and Alt-click does the opposite of this setting.</p>
       <label class="row"><input type="checkbox" id="sLazy"> When restoring several tabs, leave them unloaded until clicked</label>
       <label class="row">Auto-stash tabs unused for <input type="number" id="sAuto" min="0" max="365" class="num"> days (0 = off)</label>
+      <label class="row"><input type="checkbox" id="sSnap"> Keep automatic safety snapshots (stash history and open-tabs history)</label>
+      <div class="home">
+        <strong>Backups</strong>
+        <p id="abStatus"></p>
+        <div class="home-row">
+          <button type="button" class="btn" id="abChoose">Choose backup file…</button>
+          <button type="button" class="btn" id="abNow">Back up now</button>
+          <button type="button" class="btn" id="abOff">Turn off</button>
+          <button type="button" class="btn" id="snapOpen">Safety snapshots…</button>
+        </div>
+      </div>
+      <div class="home">
+        <strong>Open Tab Stash in every new tab</strong>
+        <p>Browsers only allow this as a fixed extension setting, so it is opt-in from the command line: run <code>bash ~/tab-stash/newtab.sh on</code>, then reload the extension. Use <code>off</code> to undo it.</p>
+      </div>
       <div class="home">
         <strong>Use Tab Stash as your home page</strong>
         <p>Browsers don't let extensions set this themselves. Copy the address below, then:</p>

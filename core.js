@@ -18,6 +18,9 @@ import {
   idbKeys,
 } from './common.js';
 
+// Lets the background worker tell "window closed by a stash" from "window closed by accident".
+export const activity = { lastStashAt: 0 };
+
 const channel = new BroadcastChannel('tab-stash');
 export const notify = (msg) => channel.postMessage(msg);
 
@@ -277,6 +280,7 @@ export async function stashTabs(inputTabs, opts = {}) {
   });
 
   if (close) {
+    activity.lastStashAt = Date.now();
     const ids = tabs.map((t) => t.id);
     const win = protectWindowId ?? (await chrome.windows.getLastFocused()).id;
     const inWin = await chrome.tabs.query({ windowId: win });

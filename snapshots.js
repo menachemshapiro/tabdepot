@@ -5,6 +5,7 @@
 //    closes, so an accidental window close or a crash is recoverable.
 // Thumbnails are not copied (they are re-fetched if needed). Kept locally in IndexedDB.
 
+import { mergeData } from './backup.js';
 import {
   getState,
   getSettings,
@@ -99,29 +100,7 @@ export async function restoreStashSnapshot(id, mode = 'merge') {
       state.orders = data.orders;
       return;
     }
-    const mapped = new Map(); // snapshot group id -> current group id (parents first)
-    const mapGroup = (g) => {
-      if (mapped.has(g.id)) return mapped.get(g.id);
-      const parent = g.parentId ? data.groups.find((x) => x.id === g.parentId) : null;
-      const found = ensureGroup(state, g.name, g.color, parent ? mapGroup(parent) : null);
-      mapped.set(g.id, found.id);
-      return found.id;
-    };
-    data.groups.forEach(mapGroup);
-    const byKey = new Map(state.items.map((i) => [dupKey(i.url), i]));
-    const taken = new Set(state.items.map((i) => i.id));
-    for (const it of data.items) {
-      const groupIds = it.groupIds.map((g) => mapped.get(g)).filter(Boolean);
-      const existing = byKey.get(dupKey(it.url));
-      if (existing) {
-        for (const g of groupIds) if (!existing.groupIds.includes(g)) existing.groupIds.push(g);
-        continue;
-      }
-      const item = { ...it, id: taken.has(it.id) ? uid() : it.id, groupIds };
-      state.items.push(item);
-      byKey.set(dupKey(it.url), item);
-      taken.add(item.id);
-    }
+    mergeData(state, data);
   });
 }
 
