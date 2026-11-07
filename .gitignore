@@ -1,0 +1,7 @@
+dist/
+node_modules/
+*.pem
+*.crx
+.DS_Store
+.newtab
+tests/.tmp/

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tab Stash</title>
+  <link rel="icon" href="icons/icon48.png">
+  <link rel="stylesheet" href="stash.css">
+  <link rel="stylesheet" href="picker.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <img src="icons/icon48.png" alt="">
+      <div>
+        <h1>Tab Stash</h1>
+        <span id="summary"></span>
+      </div>
+    </div>
+    <div class="search"><input id="q" type="search" placeholder="Search titles, links, notes…   ( / )" autocomplete="off"></div>
+    <div class="tools">
+      <select id="sort" title="Sort">
+        <option value="newest">Newest first</option>
+        <option value="oldest">Oldest first</option>
+        <option value="title">Title A–Z</option>
+        <option value="domain">Site A–Z</option>
+      </select>
+      <label class="size" title="Card size"><input id="size" type="range" min="200" max="480" step="10"></label>
+      <button id="stashBtn" class="btn primary">Stash tabs ▾</button>
+      <button id="toolsBtn" class="btn" title="More">⋯</button>
+    </div>
+  </header>
+
+  <div id="selbar" hidden></div>
+
+  <div class="layout">
+    <aside id="side"></aside>
+    <main id="main"></main>
+  </div>
+
+  <div id="toast" hidden></div>
+  <input type="file" id="importFile" accept=".json,.txt,application/json,text/plain" hidden>
+
+  <dialog id="dlgGroup">
+    <form method="dialog">
+      <h3 id="gTitle">New group</h3>
+      <label>Name<input id="gName" required maxlength="60" autocomplete="off"></label>
+      <div class="field"><span>Colour</span><div id="gColors" class="swatches"></div></div>
+      <menu>
+        <button value="cancel" class="btn" formnovalidate>Cancel</button>
+        <button value="ok" class="btn primary">Save</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="dlgItem">
+    <form method="dialog">
+      <h3>Edit tab</h3>
+      <label>Title<input id="iTitle" required maxlength="300" autocomplete="off"></label>
+      <label>Note<textarea id="iNote" rows="3" maxlength="1000" placeholder="Why did you keep this?"></textarea></label>
+      <label>Group<select id="iGroup"></select></label>
+      <p id="iUrl" class="url"></p>
+      <menu>
+        <button value="cancel" class="btn" formnovalidate>Cancel</button>
+        <button value="ok" class="btn primary">Save</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="dlgPick" class="wide"><div id="pickRoot"></div></dialog>
+
+  <dialog id="dlgSettings">
+    <form method="dialog">
+      <h3>Settings</h3>
+      <label class="row"><input type="checkbox" id="sIncludePinned"> Include pinned tabs when stashing many tabs</label>
+      <label class="row"><input type="checkbox" id="sPreserve"> Keep Chrome tab groups as stash groups</label>
+      <label class="row"><input type="checkbox" id="sDedupe"> Don't store the same link twice</label>
+      <label class="row"><input type="checkbox" id="sFetch"> After stashing, fetch thumbnails from the web (YouTube thumbnails and each page's preview image; no tabs are touched)</label>
+      <label class="row"><input type="checkbox" id="sCapture"> Also screenshot tabs by visiting them (slow, and can start videos playing)</label>
+      <label class="row"><input type="checkbox" id="sKeep"> Keep a tab in the stash after opening it</label>
+      <label class="row"><input type="checkbox" id="sLazy"> When restoring several tabs, leave them unloaded until clicked</label>
+      <label class="row">Auto-stash tabs unused for <input type="number" id="sAuto" min="0" max="365" class="num"> days (0 = off)</label>
+      <div class="home">
+        <strong>Use Tab Stash as your home page</strong>
+        <p>Browsers don't let extensions set this themselves. Copy the address below, then:</p>
+        <div class="home-row">
+          <input id="homeUrl" readonly>
+          <button type="button" class="btn" id="copyHome">Copy</button>
+        </div>
+        <ol>
+          <li>Start-up page: <button type="button" class="pk-link" id="openStartup">open “On startup” settings</button> → <em>Open a specific page</em> → <em>Add a new page</em> → paste.</li>
+          <li>Home button: <button type="button" class="pk-link" id="openAppearance">open “Appearance” settings</button> → turn on <em>Show home button</em> → <em>Enter custom web address</em> → paste.</li>
+        </ol>
+      </div>
+      <div class="home about">
+        <strong>Tab Stash <span id="ver"></span></strong>
+        <div class="home-row">
+          <button type="button" class="btn" id="whatsNew">What's new</button>
+          <button type="button" class="btn" id="reloadExt" title="Use after replacing the extension's files with a newer version">Reload extension</button>
+        </div>
+      </div>
+      <menu>
+        <button value="cancel" class="btn" formnovalidate>Cancel</button>
+        <button value="ok" class="btn primary">Save</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="dlgChanges" class="wide">
+    <form method="dialog">
+      <h3 id="changesTitle">What's new</h3>
+      <pre id="changesText"></pre>
+      <menu><button value="ok" class="btn primary">Close</button></menu>
+    </form>
+  </dialog>
+
+  <script type="module" src="stash.js"></script>
+</body>
+</html>

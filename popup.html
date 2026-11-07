@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="picker.css">
+</head>
+<body>
+  <div id="mainView">
+    <header>
+      <img src="icons/icon48.png" alt="">
+      <div>
+        <h1>Tab Stash</h1>
+        <p id="count">&nbsp;</p>
+      </div>
+    </header>
+
+    <div class="actions">
+      <button class="primary" data-scope="tab"><span>Stash this tab</span><kbd>Alt+Shift+S</kbd></button>
+      <button id="choose"><span>Choose tabs to stash…</span><b>▸</b></button>
+    </div>
+
+    <div class="send">
+      <label for="group">Send to</label>
+      <select id="group"></select>
+    </div>
+    <input id="newGroup" placeholder="New group name" maxlength="60" hidden>
+
+    <div class="actions">
+      <button data-scope="window"><span>Stash all tabs in this window</span><b></b></button>
+      <button data-scope="others"><span>Stash all except this tab</span><b></b></button>
+      <button data-scope="highlighted" hidden><span>Stash selected tabs</span><b></b></button>
+      <button data-scope="right"><span>Stash tabs to the right</span><b></b></button>
+      <button data-scope="left"><span>Stash tabs to the left</span><b></b></button>
+      <button data-scope="site"><span id="siteLabel">Stash tabs from this site</span><b></b></button>
+      <button data-scope="all"><span>Stash every tab in every window</span><b></b></button>
+    </div>
+
+    <footer>
+      <button id="open" class="primary">Open stash</button>
+      <button id="settings">Settings</button>
+    </footer>
+  </div>
+
+  <div id="pickerView" hidden></div>
+  <p id="status" hidden></p>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+:root {
+  --bg: #fff; --text: #1f2430; --muted: #6b7280; --line: #e5e7eb; --accent: #4c6ef5; --hover: #f1f3f9;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1c1f26; --text: #e8eaed; --muted: #98a0ad; --line: #2e323c; --accent: #7c94ff; --hover: #262a34; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; width: 340px; padding: 14px; background: var(--bg); color: var(--text); font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+header img { width: 34px; height: 34px; border-radius: 8px; }
+h1 { margin: 0; font-size: 16px; }
+#count { margin: 0; color: var(--muted); font-size: 12px; }
+.send { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.send label { color: var(--muted); }
+select, input { flex: 1; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; }
+#newGroup { width: 100%; margin-bottom: 8px; }
+.actions { display: flex; flex-direction: column; gap: 4px; }
+.actions button, footer button {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: transparent; color: inherit; font: inherit; cursor: pointer; text-align: left;
+}
+.actions button:hover:not(:disabled), footer button:hover { background: var(--hover); }
+.actions button:disabled { opacity: .4; cursor: default; }
+.actions b { font-weight: 600; color: var(--muted); }
+kbd { color: var(--muted); font: 11px ui-monospace, monospace; }
+button.primary { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; font-weight: 600; }
+button.primary kbd, button.primary b { color: rgba(255,255,255,.8); }
+button.primary:hover { filter: brightness(1.08); }
+footer { display: flex; gap: 6px; margin-top: 12px; }
+footer button { justify-content: center; }
+#status { margin: 10px 0 0; text-align: center; color: var(--accent); font-weight: 600; }
+
+body.wide { width: 470px; }
+#pickerView { --pk-head-bg: var(--bg); }
+.actions + .send { margin-top: 10px; }
+.send { margin-bottom: 8px; }
+.actions + .send + #newGroup + .actions { margin-top: 4px; }
