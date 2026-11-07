@@ -3,6 +3,10 @@
 All notable changes to Tab Stash. Format based on [Keep a Changelog](https://keepachangelog.com/),
 versions follow [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH).
 
+## [2.1.2] - 2026-11-07
+### Added
+- A stash page that is still open after an update now notices that it is running old code and shows a banner with **Reload this page**. If new files are in the folder but the extension has not been reloaded yet, the banner offers **Reload extension** instead. (An old page can otherwise keep behaving like the previous version.)
+
 ## [2.1.1] - 2026-11-07
 ### Fixed
 - Dragging several selected cards onto a group moves all of them. Before, only cards from the section you dragged from left their group; selected cards from other sections stayed where they were, so it looked like a copy.

@@ -25,6 +25,7 @@ import { openSettings, showText, refreshAutobackupStatus } from './dialogs.js';
 import { openSnapshots } from './snapui.js';
 import { startTriage } from './triage.js';
 import { initUpdates, checkNow, rollbackNow } from './updateui.js';
+import { watchStale } from './stale.js';
 
 const ui = app.ui;
 const DAY = 86400_000;
@@ -992,4 +993,5 @@ async function announceUpdate() {
   checkOtherPages();
   act.startBackupTimers();
   initUpdates();
+  watchStale();
 })();

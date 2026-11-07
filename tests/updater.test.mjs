@@ -97,6 +97,27 @@ export default async function () {
   await sleep(200);
   check('"Later" hides it', (await page.$$eval('#banner .banner', (b) => b.length)) === 0);
 
+  // stale-page detection
+  const stale = await page.evaluate(async () => {
+    const m = await import('./stale.js');
+    const out = {};
+    out.pure = [m.staleState({ loaded: '1', running: '1', disk: '1', alive: true }), m.staleState({ loaded: '1', running: '2', disk: '2', alive: true }), m.staleState({ loaded: '2', running: '2', disk: '3', alive: true }), m.staleState({ loaded: '1', running: null, disk: null, alive: false })];
+    out.fresh = await m.checkStale();
+    out.freshBanner = document.querySelectorAll('#banner .banner').length;
+    out.disk = await m.checkStale({ read: async () => '99.0.0' });
+    out.diskText = document.querySelector('#banner .banner')?.textContent || '';
+    out.page = await m.checkStale({ loaded: '0.0.1' });
+    out.pageText = document.querySelector('#banner .banner')?.textContent || '';
+    await m.checkStale();
+    out.cleared = document.querySelectorAll('#banner .banner').length;
+    return out;
+  });
+  check('staleState decisions', JSON.stringify(stale.pure) === '["ok","page","extension","page"]', JSON.stringify(stale.pure));
+  check('no banner when up to date', stale.fresh === 'ok');
+  check('new files on disk -> "Reload extension" banner', stale.disk === 'extension' && /still running/.test(stale.diskText), stale.diskText);
+  check('page older than extension -> "Reload this page" banner', stale.page === 'page' && /old code/.test(stale.pageText), stale.pageText);
+  check('banner disappears when up to date again', stale.cleared === 0, String(stale.cleared));
+
   check('no page errors', h.errors.length === 0 || (console.log(h.errors), false));
   await h.close();
   srv.close();
