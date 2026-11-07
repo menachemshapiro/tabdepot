@@ -7,6 +7,8 @@ import {
   getState,
   mutate,
   ensureGroup,
+  dupKey,
+  youtubeId,
   uid,
   hostOf,
   isStashableUrl,
@@ -237,6 +239,7 @@ export async function stashTabs(inputTabs, opts = {}) {
     let targetId = groupId;
     if (!targetId && groupName) targetId = ensureGroup(state, groupName).id;
 
+    const byKey = new Map(state.items.map((x) => [dupKey(x.url), x]));
     for (let i = 0; i < tabs.length; i++) {
       const t = tabs[i];
       let info = scraped[i] || {};
@@ -245,12 +248,12 @@ export async function stashTabs(inputTabs, opts = {}) {
       const cg = chromeGroups.get(t.groupId);
       if (!gid && cg) gid = ensureGroup(state, cg.title || `${cg.color} group`, cg.color).id;
 
-      let item = settings.dedupe ? state.items.find((x) => x.url === t.url) : null;
+      let item = settings.dedupe ? byKey.get(dupKey(t.url)) : null;
       if (item) {
         item.addedAt = now;
         item.order = i;
         if (t.title) item.title = t.title;
-        if (gid) item.groupId = gid;
+        if (gid && !item.groupIds.includes(gid)) item.groupIds.push(gid);
         if (info.description) item.description = info.description;
         if (info.ogImage) item.ogImage = info.ogImage;
       } else {
@@ -262,10 +265,11 @@ export async function stashTabs(inputTabs, opts = {}) {
           ogImage: info.ogImage || '',
           addedAt: now,
           order: i,
-          groupId: gid || null,
+          groupIds: gid ? [gid] : [],
           note: '',
         };
         state.items.push(item);
+        byKey.set(dupKey(t.url), item);
         added++;
       }
       if (thumbs.has(t.id)) await idbPut('thumbs', item.id, thumbs.get(t.id));
@@ -410,7 +414,7 @@ export async function stashLink(url, textHint = '') {
   const settings = await getSettings();
   const meta = await fetchMeta(url);
   await mutate((state) => {
-    if (settings.dedupe && state.items.some((x) => x.url === url)) return;
+    if (settings.dedupe && state.items.some((x) => dupKey(x.url) === dupKey(url))) return;
     state.items.push({
       id: uid(),
       url,
@@ -419,7 +423,7 @@ export async function stashLink(url, textHint = '') {
       ogImage: meta.ogImage || '',
       addedAt: Date.now(),
       order: 0,
-      groupId: null,
+      groupIds: [],
       note: '',
     });
   });
@@ -428,21 +432,7 @@ export async function stashLink(url, textHint = '') {
 
 // ---------- thumbnails fetched from the web (no tabs are touched) ----------
 
-export function youtubeId(url) {
-  try {
-    const u = new URL(url);
-    const host = u.hostname.replace(/^(www|m|music)\./, '');
-    let id = null;
-    if (host === 'youtu.be') id = u.pathname.slice(1).split('/')[0];
-    else if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
-      if (u.pathname === '/watch') id = u.searchParams.get('v');
-      else id = (u.pathname.match(/^\/(?:shorts|embed|live|v)\/([\w-]{11})/) || [])[1];
-    }
-    return id && /^[\w-]{11}$/.test(id) ? id : null;
-  } catch {
-    return null;
-  }
-}
+export { youtubeId };
 
 async function fetchWithTimeout(url, ms = 8000, init = {}) {
   const ctrl = new AbortController();
@@ -653,7 +643,7 @@ export function enrichMissing({ ids = null, force = false, retry = false } = {})
 export async function restoreItems(items, opts = {}) {
   if (!items.length) return 0;
   const settings = await getSettings();
-  const { mode = 'tabs', background = false, keep = settings.keepOnOpen, groupTitle = '', groupColor = 'grey' } = opts;
+  const { mode = 'tabs', background = false, keep = settings.openMode === 'keep', groupTitle = '', groupColor = 'grey' } = opts;
   const lazy = settings.lazyRestore && items.length > 3;
 
   const queue = [...items];
