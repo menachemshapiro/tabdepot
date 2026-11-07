@@ -28,7 +28,7 @@ Your stash lives in the browser, not in the folder, so updating never touches it
 
 After reloading you get a one-time "updated 1.0.0 → 1.1.0" notice with a **What's new** link. Version and changelog are always available under Settings. Full history: `CHANGELOG.md`.
 
-Maintainers: `./release.sh 1.2.0` (after adding a `## [1.2.0]` entry to `CHANGELOG.md`) bumps the manifest and builds `dist/tab-stash-1.2.0.zip`. Versions follow semantic versioning.
+Maintainers: `./release.sh 1.2.0` (after adding a `## [1.2.0]` entry to `CHANGELOG.md`) bumps the manifest and builds `dist/tab-stash-1.2.0.zip`. Versions follow semantic versioning. Pushing a new manifest version to `main` publishes the GitHub release automatically (tag `v1.2.0`, zip attached, notes taken from the changelog); see `.github/workflows/release.yml`. Pushing a `v*` tag by hand also still works.
 
 ## Stashing tabs
 

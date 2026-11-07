@@ -1,21 +1,70 @@
 name: Release zip
-# Push a tag like v2.0.0 and this builds dist/tab-stash-2.0.0.zip and attaches it to a GitHub release.
+# Publishes a GitHub release with dist/tab-stash-X.Y.Z.zip attached.
+#
+# - Push to main: if manifest.json has a version that has no release yet, the release
+#   (and its tag vX.Y.Z) is created automatically. Pushes that don't change the version do nothing.
+# - Push a tag like v2.0.0 by hand: still works, builds that tag's version.
+# - Actions tab -> "Run workflow": same check as a push to main.
+#
+# The version must have a "## [X.Y.Z]" section in CHANGELOG.md (release.sh checks it);
+# that section becomes the release notes.
 on:
   push:
+    branches: [main]
     tags: ['v*']
+  workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: release
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build zip
+
+      - name: Decide version
+        id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          V="${GITHUB_REF_NAME#v}"
-          ./release.sh "$V"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V=$(python3 -c "import json;print(json.load(open('manifest.json'))['version'])")
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if gh release view "v$V" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v$V already exists, nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Will release v$V."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build zip
+        if: steps.v.outputs.skip == 'false'
+        run: ./release.sh "${{ steps.v.outputs.version }}"
+
+      - name: Release notes from CHANGELOG.md
+        if: steps.v.outputs.skip == 'false'
+        run: |
+          V="${{ steps.v.outputs.version }}"
+          awk -v v="$V" '
+            $0 ~ "^## \\[" v "\\]" {on=1; next}
+            on && /^## \[/ {exit}
+            on {print}
+          ' CHANGELOG.md > notes.md
+          cat notes.md
+
       - name: Publish release
+        if: steps.v.outputs.skip == 'false'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.v.outputs.version }}
+          name: v${{ steps.v.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          body_path: notes.md
           files: dist/*.zip
-          generate_release_notes: true
+          make_latest: true
