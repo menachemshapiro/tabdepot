@@ -24,6 +24,7 @@ import * as act from './actions.js';
 import { openSettings, showText, refreshAutobackupStatus } from './dialogs.js';
 import { openSnapshots } from './snapui.js';
 import { startTriage } from './triage.js';
+import { initUpdates, checkNow, rollbackNow } from './updateui.js';
 
 const ui = app.ui;
 const DAY = 86400_000;
@@ -851,6 +852,8 @@ function bindHeader() {
   $('#homeUrl').addEventListener('focus', (e) => e.target.select());
   $('#whatsNew').addEventListener('click', showChanges);
   $('#reloadExt').addEventListener('click', () => chrome.runtime.reload());
+  $('#checkUpdate').addEventListener('click', checkNow);
+  $('#rollbackUpdate').addEventListener('click', rollbackNow);
   $('#abChoose').addEventListener('click', async () => { await act.chooseBackupFile(); refreshAutobackupStatus(); });
   $('#abNow').addEventListener('click', async () => { await act.runAutobackup({ force: true, click: true }); refreshAutobackupStatus(); });
   $('#abOff').addEventListener('click', async () => { await act.turnOffBackup(); refreshAutobackupStatus(); });
@@ -988,4 +991,5 @@ async function announceUpdate() {
   scheduleEnrich(600);
   checkOtherPages();
   act.startBackupTimers();
+  initUpdates();
 })();

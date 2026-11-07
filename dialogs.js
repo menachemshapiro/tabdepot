@@ -172,6 +172,7 @@ export async function openSettings(hooks = {}) {
   $('#sOpenMode').value = s.openMode;
   $('#sLazy').checked = s.lazyRestore;
   $('#sSnap').checked = s.snapshots;
+  $('#sUpdates').checked = s.checkUpdates;
   $('#sAuto').value = s.autoStashDays;
   $('#homeUrl').value = STASH_PAGE;
   $('#ver').textContent = 'v' + chrome.runtime.getManifest().version;
@@ -191,6 +192,7 @@ export async function openSettings(hooks = {}) {
         openMode: $('#sOpenMode').value,
         lazyRestore: $('#sLazy').checked,
         snapshots: $('#sSnap').checked,
+        checkUpdates: $('#sUpdates').checked,
         autoStashDays: Math.max(0, Math.min(365, parseInt($('#sAuto').value, 10) || 0)),
       });
       toast('Settings saved');

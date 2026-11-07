@@ -3,6 +3,14 @@
 All notable changes to Tab Stash. Format based on [Keep a Changelog](https://keepachangelog.com/),
 versions follow [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH).
 
+## [2.1.0] - 2026-11-07
+### Added
+- **Update from inside the extension.** The stash page checks GitHub for a newer release (at most every 6 hours; can be turned off in Settings) and shows a banner. **Update now** downloads the release zip, writes the files into the extension folder and reloads the extension. The first time you pick the Tab Stash folder in a folder dialog (browsers do not let an extension overwrite its own files otherwise); the choice is remembered.
+- The previous files are saved in `previous-version/` inside the folder, and Settings → **Restore previous version** puts them back. The "open in every new tab" setting is kept across updates.
+- Settings → **Check for updates**.
+### Notes
+- If your browser cannot write to the folder, or you prefer the terminal, `update.sh` still works exactly as before.
+
 ## [2.0.1] - 2026-11-07
 ### Fixed
 - **Move to…** really moves now: the tabs leave their other groups. (In 2.0.0 the menu only added them to the chosen group, so it behaved like a copy.)

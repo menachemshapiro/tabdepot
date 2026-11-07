@@ -15,6 +15,10 @@ Works in Chrome, Edge, Brave, Opera, Vivaldi and other Chromium browsers (Chrome
 
 ## Updating to a newer version
 
+**From inside the extension (2.1+):** a banner on the stash page announces a new release; click **Update now**. The first time, pick your Tab Stash folder in the dialog (the one you loaded in `chrome://extensions`, for example `~/tab-stash`). The files are replaced, the old ones are kept in `previous-version/` (Settings → *Restore previous version* undoes it), and the extension reloads itself. Settings → *Check for updates* checks on demand; the automatic check (at most every 6 hours, only asks GitHub for the latest release number) can be switched off there.
+
+**From the terminal (any version):**
+
 Your stash lives in the browser, not in the folder, so updating never touches it. The extension ID is pinned in the manifest (`ogjhcebbpelgnmhcdipnaknjfmlpfhof`), so it stays the same wherever the folder is, and so does the stash address you use as a home page.
 
 1. Download the new `tab-stash.zip`.

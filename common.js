@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS = {
   openMode: 'remove', // clicking a card: 'remove' (open + remove), 'keep' (open, stay in stash), 'ask'
   lazyRestore: true, // restore many tabs without loading them until clicked
   autoStashDays: 0, // 0 = off
+  checkUpdates: true, // look for a newer release on GitHub (at most every 6 hours)
   snapshots: true, // rolling safety snapshots (stash history + open-tabs history)
   cardSize: 300,
   sort: 'newest',

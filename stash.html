@@ -202,7 +202,11 @@
         <div class="home-row">
           <button type="button" class="btn" id="whatsNew">What's new</button>
           <button type="button" class="btn" id="reloadExt" title="Use after replacing the extension's files with a newer version">Reload extension</button>
+          <button type="button" class="btn" id="checkUpdate">Check for updates</button>
+          <button type="button" class="btn" id="rollbackUpdate" title="Put back the files saved before the last in-app update">Restore previous version</button>
         </div>
+        <p id="updStatus" class="hint"></p>
+        <label class="row"><input type="checkbox" id="sUpdates"> Look for new versions on GitHub (at most every 6 hours; only asks GitHub for the latest release number)</label>
       </div>
       <menu>
         <button value="cancel" class="btn" formnovalidate>Cancel</button>
