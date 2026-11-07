@@ -60,6 +60,27 @@ export default async function () {
   s = await st();
   check('Ctrl+drag copies instead of moving', JSON.stringify(s.items.find((i) => i.id === 'i2').groupIds.sort()) === '["A","C"]');
 
+  // ---- menu: "Move to" leaves other groups, "Add to" keeps them
+  await page.evaluate(() => { const a = document.querySelector('.card[data-id="i2"] .chk'); a.click(); });
+  await sleep(200);
+  await page.evaluate(() => [...document.querySelectorAll('#selbar .tb')].find((b) => /^\s*Move to/.test(b.textContent)).click());
+  await sleep(200);
+  await page.evaluate(() => [...document.querySelectorAll('.menu-item')].find((b) => /Beta/.test(b.textContent)).click());
+  await sleep(700);
+  s = await st();
+  check('"Move to…" really moves (leaves other groups)', JSON.stringify(s.items.find((i) => i.id === 'i2').groupIds) === '["B"]', JSON.stringify(s.items.find((i) => i.id === 'i2').groupIds));
+  await page.evaluate(() => { const a = document.querySelector('.card[data-id="i2"] .chk'); if (!a.checked) a.click(); });
+  await sleep(200);
+  await page.evaluate(() => [...document.querySelectorAll('#selbar .tb')].find((b) => /Add to/.test(b.textContent)).click());
+  await sleep(200);
+  await page.evaluate(() => [...document.querySelectorAll('.menu-item')].find((b) => /Alpha/.test(b.textContent)).click());
+  await sleep(700);
+  s = await st();
+  check('"Add to…" keeps the existing groups', JSON.stringify(s.items.find((i) => i.id === 'i2').groupIds.sort()) === '["A","B"]', JSON.stringify(s.items.find((i) => i.id === 'i2').groupIds));
+  await page.keyboard.press('Escape'); await sleep(200);
+  await page.evaluate(async () => { const m = await import('./model.js'); await m.changeMembership(['i2'], { replace: ['A', 'C'] }); });
+  await sleep(500);
+
   // ---- reorder inside a section
   await dnd('.section[data-key="A"] .card[data-id="i3"]', '.section[data-key="A"] .card[data-id="i2"]', { x: 0.2 });
   await sleep(700);

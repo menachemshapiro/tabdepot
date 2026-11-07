@@ -3,6 +3,12 @@
 All notable changes to Tab Stash. Format based on [Keep a Changelog](https://keepachangelog.com/),
 versions follow [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH).
 
+## [2.0.1] - 2026-11-07
+### Fixed
+- **Move to…** really moves now: the tabs leave their other groups. (In 2.0.0 the menu only added them to the chosen group, so it behaved like a copy.)
+### Added
+- **Add to…** (selection bar, card menu, key `a`) adds tabs to another group while keeping their current groups. Dragging still moves; hold Ctrl/Alt to add instead.
+
 ## [2.0.0] - 2026-11-07
 A big release: the stash page was rebuilt. Your existing stash is migrated automatically (take a backup first if you like: ⋯ → Back up stash to a file…).
 ### Added

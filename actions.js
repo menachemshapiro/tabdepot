@@ -93,8 +93,9 @@ export async function moveTo(ids, gid, { from = null, copy = false } = {}) {
   if (copy && gid) await model.addToGroups(ids, [gid]);
   else if (!gid) await model.changeMembership(ids, from ? { remove: [from] } : { replace: [] }, 'move to Ungrouped');
   else if (from && from !== gid) await model.changeMembership(ids, { add: [gid], remove: [from] }, 'move to group');
-  else await model.addToGroups(ids, [gid]);
-  await done(`${copy ? 'Added' : 'Moved'} ${plural(ids.length, 'tab')} ${copy ? 'to' : 'to'} ${name}`);
+  else if (from) await model.addToGroups(ids, [gid]); // dropped back on its own group
+  else await model.changeMembership(ids, { replace: [gid] }, 'move to group'); // menu: leave every other group
+  await done(`${copy ? 'Added' : 'Moved'} ${plural(ids.length, 'tab')} to ${name}`);
 }
 
 export async function newGroup(parentId = null, thenAdd = null) {
@@ -134,13 +135,14 @@ export async function groupsDialog(ids) {
   await done('Groups updated');
 }
 
-export function moveMenu(anchor, ids) {
+// copy=false: "Move to" (the tabs leave all their other groups). copy=true: "Add to" (they stay where they are).
+export function moveMenu(anchor, ids, copy = false) {
   showMenu(anchor, [
-    { head: 'Move to' },
-    { label: 'Ungrouped', onClick: () => moveTo(ids, null) },
+    { head: copy ? 'Also add to (keeps current groups)' : 'Move to (leaves current groups)' },
+    !copy && { label: 'Ungrouped', onClick: () => moveTo(ids, null) },
     ...flattenGroups(app.state.groups).map(({ group, depth }) => ({
       label: '  '.repeat(depth) + (depth ? '↳ ' : '') + group.name,
-      onClick: () => moveTo(ids, group.id),
+      onClick: () => moveTo(ids, group.id, { copy }),
     })),
     { sep: true },
     { label: 'New group…', onClick: () => newGroup(null, ids) },

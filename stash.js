@@ -471,6 +471,7 @@ function cardMenu(anchor, it, key) {
     { label: 'Open in new window', onClick: () => act.openItems([it], { mode: 'window' }, anchor) },
     { sep: true },
     { label: 'Move to…', onClick: () => act.moveMenu(anchor, ui.selected.has(it.id) ? [...ui.selected] : [it.id]) },
+    { label: 'Add to…', onClick: () => act.moveMenu(anchor, ui.selected.has(it.id) ? [...ui.selected] : [it.id], true) },
     { label: 'Groups…', onClick: () => act.groupsDialog(ui.selected.has(it.id) ? [...ui.selected] : [it.id]) },
     from && { label: `Remove from “${groupOf(from)?.name}”`, onClick: () => model.removeFromGroup([it.id], from).then(() => done('Removed from group')) },
     { label: it.note ? 'Edit note…' : 'Add note…', onClick: () => act.noteDialog([it.id]) },
@@ -571,6 +572,7 @@ function renderSelbar() {
     h('span', { class: 'sel-count', text: `${n} selected` }),
     tb('Open ▾', 'restore', (e) => act.openMenu(e.currentTarget, selectedItems(), commonGroup(selectedItems()))),
     tb('Move to…', 'folder', (e) => act.moveMenu(e.currentTarget, ids())),
+    tb('Add to…', 'plus', (e) => act.moveMenu(e.currentTarget, ids(), true)),
     tb('Groups…', 'tag', () => act.groupsDialog(ids())),
     tb('Add note…', 'note', () => act.noteDialog(ids())),
     tb('Delete', 'trash', () => act.deleteIds(ids()), 'danger'),
@@ -903,6 +905,7 @@ document.addEventListener('keydown', (e) => {
   else if (k === 'x' || k === ' ') { const it = cursorItem(); if (it) { e.preventDefault(); toggleSelect(it.id); } }
   else if (k === 'Delete' || k === 'Backspace') { const ids = targetIds(); if (ids.length) { e.preventDefault(); act.deleteIds(ids); } }
   else if (k === 'm') { const ids = targetIds(); if (ids.length) act.moveMenu(document.querySelector('.card.kbd') || document.body, ids); }
+  else if (k === 'a') { const ids = targetIds(); if (ids.length) act.moveMenu(document.querySelector('.card.kbd') || document.body, ids, true); }
   else if (k === 'g') act.groupsDialog(targetIds());
   else if (k === 'n') { e.preventDefault(); act.noteDialog(targetIds()); }
   else if (k === 'e') { const it = cursorItem(); if (it) { e.preventDefault(); act.editItemDialog(it); } }

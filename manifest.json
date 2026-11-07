@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwFT6qHiF2keTIJKJ5vRuZaIcX3yktLz5AgBYL7JrpUWLidP6q1nM3Cl9TRfVrApchYHm3ehMXDy9nsI4rSzzZ9Fcm1gjRXXaSYW4+oDkUVKjRJFmGwYhdvvdBK7MGXmkCbvDJIQmOiQgDVpH4ZBdzsF34Jmlb++1RU3/V/lIviGm2HC6wLL33enB+wFlmcuEI0DDDXBAv1Cj6b00PKfJGGmr9QI1agx8eao0xLxJgGrOyVPVEld+HfmCMCPOoWha9ygp0JC9Pp9OgWqFO8o3vrq48pQ/N7zmahV48Nt63Dd6JxZundzVhGVum41WyMkrnw++cc5UpJrrBnnYI3w1AwIDAQAB",
   "name": "Tab Stash",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Move open tabs into a lightweight visual stash that uses no memory. Group, search, restore or delete them any time.",
   "minimum_chrome_version": "110",
   "permissions": [
@@ -53,5 +53,5 @@
       "description": "Open the stash"
     }
   },
-  "version_name": "2.0.0"
+  "version_name": "2.0.1"
 }
