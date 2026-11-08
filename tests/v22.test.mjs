@@ -222,6 +222,22 @@ export default async function () {
   const back = await sp.evaluate(async () => (await (await import('./common.js')).getState()).items.some((i) => i.id === 'i3'));
   check('recently deleted lists the tab and restores it', rows === 1 && back, `${rows} ${back}`);
 
+  await sp.evaluate(() => document.querySelectorAll('dialog[open]').forEach((d) => d.close()));
+  // "?" shows the keyboard shortcuts (not while typing in a box)
+  await sp.evaluate(() => document.activeElement?.blur());
+  await sp.keyboard.down('Shift'); await sp.keyboard.press('Slash'); await sp.keyboard.up('Shift');
+  await sleep(300);
+  const helpOpen = await sp.evaluate(() => [document.querySelector('#dlgHelp').open, document.querySelector('#dlgHelp').textContent.includes('Show this list'), document.querySelector('#dlgHelp').textContent.includes('In triage mode')]);
+  check('the ? key opens the shortcuts list, which includes triage keys', helpOpen.every(Boolean), JSON.stringify(helpOpen));
+  await sp.evaluate(() => document.querySelector('#dlgHelp').close());
+  // the tools menu is grouped under headings
+  await sp.click('#toolsBtn');
+  await sleep(200);
+  const heads = await sp.$$eval('.menu > .menu-head', (e) => e.map((x) => x.textContent));
+  check('tools menu has headed groups', heads.join() === 'Tidy up,Check,Backup and safety,Help', heads.join());
+  const sec = await sp.evaluate(() => { const b = document.querySelector('.menu-section'); const body = b.nextElementSibling; const before = body.hidden; b.click(); const after = body.hidden; return [b.textContent, before, after, body.textContent.includes('Import links from pasted text') && body.textContent.includes('Export as Markdown')]; });
+  check('Import and export is one section, closed at first and opens on click', sec[0].includes('Import and export') && sec[1] === true && sec[2] === false && sec[3] === true, JSON.stringify(sec));
+  await sp.evaluate(() => document.querySelector('.menu')?.remove());
   const man = await sp.evaluate(() => chrome.runtime.getManifest());
   const cmds = Object.values(man.commands).map((c) => c.description);
   check('keyboard shortcut descriptions are their own, not the extension tagline', new Set(cmds).size === cmds.length && !cmds.includes(man.description), JSON.stringify(cmds));

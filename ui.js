@@ -76,26 +76,48 @@ export function closeMenu() {
 }
 
 // anchor: an element, or a point { x, y }.
+// Which collapsible menu sections the user left open (kept while the page is open).
+const sectionOpen = new Map();
+
+// entries: { label, onClick, danger, disabled } | { head } | { sep } | falsy (skipped) |
+//          { section: 'Title', items: [...entries], open: false }  (a heading that folds its items away)
 export function showMenu(anchor, entries) {
   closeMenu();
-  const m = h(
-    'div',
-    { class: 'menu', role: 'menu' },
-    entries.filter(Boolean).map((e) =>
-      e.sep
-        ? h('hr')
-        : e.head
-          ? h('div', { class: 'menu-head', text: e.head })
-          : h('button', { class: 'menu-item' + (e.danger ? ' danger' : ''), disabled: e.disabled, onclick: () => { closeMenu(); e.onClick?.(); } }, e.label)
-    )
-  );
+  const m = h('div', { class: 'menu', role: 'menu' });
+  const item = (e) =>
+    e.sep
+      ? h('hr')
+      : e.head
+        ? h('div', { class: 'menu-head', text: e.head })
+        : h('button', { class: 'menu-item' + (e.danger ? ' danger' : ''), disabled: e.disabled, onclick: () => { closeMenu(); e.onClick?.(); } }, e.label);
+  const place = () => {
+    const r = anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: anchor.x, right: anchor.x, top: anchor.y, bottom: anchor.y };
+    const x = Math.min(r.left, innerWidth - m.offsetWidth - 8);
+    let y = r.bottom + 6;
+    if (y + m.offsetHeight > innerHeight - 8) y = Math.max(8, r.top - m.offsetHeight - 6);
+    m.style.left = Math.max(8, x) + 'px';
+    m.style.top = y + 'px';
+  };
+  for (const e of entries.filter(Boolean)) {
+    if (!e.section) {
+      m.append(item(e));
+      continue;
+    }
+    const open = sectionOpen.has(e.section) ? sectionOpen.get(e.section) : !!e.open;
+    const body = h('div', { class: 'menu-body', hidden: !open }, e.items.filter(Boolean).map(item));
+    const head = h('button', { class: 'menu-section', 'aria-expanded': String(open) }, h('span', { class: 'chev', text: open ? '▾' : '▸' }), e.section);
+    head.addEventListener('click', () => {
+      const now = body.hidden; // currently closed -> open it
+      body.hidden = !now;
+      head.setAttribute('aria-expanded', String(now));
+      head.firstChild.textContent = now ? '▾' : '▸';
+      sectionOpen.set(e.section, now);
+      place();
+    });
+    m.append(head, body);
+  }
   document.body.append(m);
-  const r = anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: anchor.x, right: anchor.x, top: anchor.y, bottom: anchor.y };
-  const x = Math.min(r.left, innerWidth - m.offsetWidth - 8);
-  let y = r.bottom + 6;
-  if (y + m.offsetHeight > innerHeight - 8) y = Math.max(8, r.top - m.offsetHeight - 6);
-  m.style.left = Math.max(8, x) + 'px';
-  m.style.top = y + 'px';
+  place();
   openMenu = m;
 }
 document.addEventListener('pointerdown', (e) => {

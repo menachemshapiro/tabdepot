@@ -14,6 +14,8 @@ versions follow [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH).
 - **Recently deleted** (off by default). Settings → *Keep deleted tabs for 30 days*. Tools menu or Settings → *Recently deleted…* lists them to restore or delete for good. Thumbnails are fetched again after a restore.
 - **Settings are tidier.** They are grouped into sections you can open and close (Stashing, Opening, Safety and backups, Start-up, Updates and about), with shorter labels. The README now explains every setting.
 - **Fixed:** the names of the keyboard shortcuts (in `chrome://extensions/shortcuts`) all showed the tagline since 2.1.3. They say “Stash the current tab”, “Stash all tabs in this window” and “Open TabDepot” again.
+- **The ⋯ menu is grouped** under headings (Tidy up, Check, Import and export, Backup and safety, Help). Import and export is one section that you can fold and unfold, and the keyboard shortcuts list (press **?**) now includes the triage keys.
+- **Help guide** with pictures: `docs/HELP.md` explains every menu, button, dialog and setting. *Help guide* in the ⋯ menu opens it on GitHub.
 ### Notes
 - Safety snapshots already skip a snapshot when nothing changed, and a window you close is already saved; nothing to change there.
 

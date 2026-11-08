@@ -100,7 +100,7 @@ main { padding: 20px 28px 60px; min-height: calc(100vh - var(--topH, 57px)); }
 .tb.x { padding: 8px; }
 #toast { position: fixed; z-index: 50; left: 24px; bottom: 24px; display: flex; align-items: center; gap: 14px; padding: 11px 16px; background: #23262f; color: #fff; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
 #toast .link { border: 0; background: transparent; color: #9db1ff; font-weight: 600; padding: 0; }
-.menu { position: fixed; z-index: 60; min-width: 210px; max-height: 60vh; overflow: auto; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.28); }
+.menu { position: fixed; z-index: 60; min-width: 210px; max-height: calc(100vh - 24px); overflow: auto; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.28); }
 .menu-item { display: block; width: 100%; padding: 7px 10px; border: 0; border-radius: 8px; background: transparent; text-align: left; white-space: nowrap; }
 .menu-item:hover { background: var(--accent-weak); }
 .menu-item.danger { color: var(--danger); }
@@ -256,3 +256,11 @@ details.sec > summary { cursor: pointer; padding: 10px 0; font-weight: 600; font
 details.sec .ver { font-weight: 400; color: var(--muted); margin-left: 6px; }
 details.sec .home { background: var(--panel); }
 .home-row.wrap { flex-wrap: wrap; }
+#dlgHelp h4 { margin: 14px 0 4px; font-size: 13px; }
+#dlgHelp { max-height: 92vh; overflow: auto; }
+
+/* collapsible section inside a menu */
+.menu-section { display: flex; align-items: center; gap: 6px; width: 100%; padding: 8px 10px 4px; border: 0; background: transparent; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; text-align: left; cursor: pointer; }
+.menu-section:hover { color: var(--text); }
+.menu-section .chev { width: 10px; font-size: 10px; }
+.menu-body[hidden] { display: none; }

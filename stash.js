@@ -21,6 +21,7 @@ import { listSnapshots, getSnapshot } from './snapshots.js';
 import { app, byId, groupOf, refresh, done, doUndo, selectedItems } from './app.js';
 import { $, h, ic, ago, hueOf, plural, showMenu, closeMenu, toast, hideToast, setBanner } from './ui.js';
 import * as act from './actions.js';
+import { REPO } from './updater.js';
 import { openSettings, openTrash, showText, refreshAutobackupStatus } from './dialogs.js';
 import { openSnapshots } from './snapui.js';
 import { startTriage } from './triage.js';
@@ -811,25 +812,31 @@ function triage(ids) {
 
 function toolsMenu(anchor) {
   showMenu(anchor, [
+    { head: 'Tidy up' },
     { label: 'Undo last change (Ctrl+Z)', onClick: doUndo },
-    { sep: true },
     { label: 'Triage: go through tabs one by one', onClick: () => triage() },
-    { label: ui.selected.size ? 'Check links of selected tabs' : 'Check all links for dead pages', onClick: () => act.runLinkCheck(ui.selected.size ? selectedItems() : app.state.items) },
     { label: 'Group ungrouped tabs by site', onClick: act.autoGroupBySite },
     { label: 'Merge duplicate links', onClick: act.mergeDuplicates },
+    { head: 'Check' },
+    { label: ui.selected.size ? 'Check links of selected tabs' : 'Check all links for dead pages', onClick: () => act.runLinkCheck(ui.selected.size ? selectedItems() : app.state.items) },
     { label: 'Fetch missing thumbnails now', onClick: act.fetchThumbsNow },
-    { sep: true },
+    { section: 'Import and export', items: [
+      { head: 'Import' },
+      { label: 'Import links from pasted text…', onClick: act.pasteLinks },
+      { label: 'Import links or bookmarks from a file…', onClick: () => $('#importFile').click() },
+      { head: 'Export' },
+      { label: 'Export as Markdown', onClick: act.exportMarkdown },
+      { label: 'Export links as plain text', onClick: act.exportPlainLinks },
+      { label: 'Export as a bookmarks file (HTML)', onClick: act.exportBookmarks },
+    ] },
+    { head: 'Backup and safety' },
     { label: 'Back up stash to a file…', onClick: () => act.saveBackup() },
     { label: 'Restore from a backup file…', onClick: act.restoreBackup },
-    { label: 'Export as Markdown', onClick: act.exportMarkdown },
-    { label: 'Export links as plain text', onClick: act.exportPlainLinks },
-    { label: 'Export as a bookmarks file (HTML)', onClick: act.exportBookmarks },
-    { label: 'Import links from pasted text…', onClick: act.pasteLinks },
-    { label: 'Import links or bookmarks from a file…', onClick: () => $('#importFile').click() },
-    { label: 'Recently deleted…', onClick: () => openTrash(refresh) },
     { label: 'Safety snapshots…', onClick: () => openSnapshots() },
-    { sep: true },
-    { label: 'Keyboard shortcuts', onClick: () => $('#dlgHelp').showModal() },
+    { label: 'Recently deleted…', onClick: () => openTrash(refresh) },
+    { head: 'Help' },
+    { label: 'Keyboard shortcuts (?)', onClick: () => $('#dlgHelp').showModal() },
+    { label: 'Help guide (opens GitHub)', onClick: () => window.open(`https://github.com/${REPO}/blob/main/docs/HELP.md`, '_blank', 'noopener') },
     { label: 'Settings…', onClick: () => openSettings({ onSaved: () => { applySettings(); scheduleRender(); } }) },
   ]);
 }
