@@ -42,16 +42,16 @@
       "suggested_key": {
         "default": "Alt+Shift+S"
       },
-      "description": "Store tabs. Clear space. Find them anytime. Your tabs, organized and ready when you need them."
+      "description": "Stash the current tab"
     },
     "stash-window": {
-      "description": "Store tabs. Clear space. Find them anytime. Your tabs, organized and ready when you need them."
+      "description": "Stash all tabs in this window"
     },
     "open-stash": {
       "suggested_key": {
         "default": "Alt+Shift+O"
       },
-      "description": "Store tabs. Clear space. Find them anytime. Your tabs, organized and ready when you need them."
+      "description": "Open TabDepot"
     }
   },
   "version_name": "2.2.0"

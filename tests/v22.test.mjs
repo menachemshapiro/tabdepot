@@ -222,6 +222,9 @@ export default async function () {
   const back = await sp.evaluate(async () => (await (await import('./common.js')).getState()).items.some((i) => i.id === 'i3'));
   check('recently deleted lists the tab and restores it', rows === 1 && back, `${rows} ${back}`);
 
+  const man = await sp.evaluate(() => chrome.runtime.getManifest());
+  const cmds = Object.values(man.commands).map((c) => c.description);
+  check('keyboard shortcut descriptions are their own, not the extension tagline', new Set(cmds).size === cmds.length && !cmds.includes(man.description), JSON.stringify(cmds));
   check('no page errors', h.errors.length === 0, h.errors.join(' | '));
   await h.close();
   return check.failed();
