@@ -23,14 +23,14 @@ Works in Chrome, Edge, Brave, Opera, Vivaldi and other Chromium browsers (Chrome
 
 Your stash lives in the browser, not in the folder, so updating never touches it. The extension ID is pinned in the manifest (`ogjhcebbpelgnmhcdipnaknjfmlpfhof`), so it stays the same wherever the folder is, and so does the stash address you use as a home page.
 
-1. Download the new `tab-stash.zip`.
-2. In a terminal: `~/tab-stash/update.sh ~/Downloads/tab-stash.zip`
+1. Download the new `tabdepot-X.Y.Z.zip`.
+2. In a terminal: `~/tab-stash/update.sh ~/Downloads/tabdepot-X.Y.Z.zip`
    (shows old → new version, saves the previous version to `~/tab-stash-backups/`, replaces the files; refuses to downgrade unless you set `FORCE=1`).
 3. Stash page → ⋯ → Settings → **Reload extension** (or the reload arrow on `chrome://extensions`).
 
 After reloading you get a one-time "updated 1.0.0 → 1.1.0" notice with a **What's new** link. Version and changelog are always available under Settings. Full history: `CHANGELOG.md`.
 
-Maintainers: `./release.sh 1.2.0` (after adding a `## [1.2.0]` entry to `CHANGELOG.md`) bumps the manifest and builds `dist/tab-stash-1.2.0.zip`. Versions follow semantic versioning. Pushing a new manifest version to `main` publishes the GitHub release automatically (tag `v1.2.0`, zip attached, notes taken from the changelog); see `.github/workflows/release.yml`. Pushing a `v*` tag by hand also still works.
+Maintainers: `./release.sh 1.2.0` (after adding a `## [1.2.0]` entry to `CHANGELOG.md`) bumps the manifest and builds `dist/tabdepot-1.2.0.zip`. Versions follow semantic versioning. Pushing a new manifest version to `main` publishes the GitHub release automatically (tag `v1.2.0`, zip attached, notes taken from the changelog); see `.github/workflows/release.yml`. Pushing a `v*` tag by hand also still works.
 
 ## Stashing tabs
 

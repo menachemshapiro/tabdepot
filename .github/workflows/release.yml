@@ -1,5 +1,5 @@
 name: Release zip
-# Publishes a GitHub release with dist/tab-stash-X.Y.Z.zip attached.
+# Publishes a GitHub release with dist/tabdepot-X.Y.Z.zip attached (plus a tab-stash-X.Y.Z.zip copy for copies older than 2.1.3).
 #
 # - Push to main: if manifest.json has a version that has no release yet, the release
 #   (and its tag vX.Y.Z) is created automatically. Pushes that don't change the version do nothing.

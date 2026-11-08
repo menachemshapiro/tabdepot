@@ -7,7 +7,7 @@
 
 import { idbGet, idbPut, idbDel } from './common.js';
 
-export const REPO = 'menachemshapiro/tabstash';
+export const REPO = 'menachemshapiro/tabdepot';
 const API = `https://api.github.com/repos/${REPO}/releases/latest`;
 const HANDLE_KEY = 'updateDirHandle';
 const BACKUP_DIR = 'previous-version';

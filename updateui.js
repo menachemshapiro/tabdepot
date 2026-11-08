@@ -7,7 +7,7 @@ import { $, h, toast, setBanner } from './ui.js';
 const SIX_HOURS = 6 * 3600_000;
 let working = false;
 
-const manualHelp = (v) => `Run in a terminal: bash ~/tab-stash/update.sh ~/Downloads/tab-stash-${v}.zip — then Settings → Reload extension.`;
+const manualHelp = (v) => `Run in a terminal: bash ~/tab-stash/update.sh ~/Downloads/tabdepot-${v}.zip — then Settings → Reload extension.`;
 
 function bannerFor(info) {
   if (!info?.available || localStorage.getItem('updateDismissed') === info.latest) return setBanner('update', null);

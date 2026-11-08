@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Update TabDepot in place from a newer zip.
-#   ./update.sh ~/Downloads/tab-stash.zip
+#   ./update.sh ~/Downloads/tabdepot.zip
 # Keeps the folder path (so the extension stays "the same" in the browser), saves a
 # backup of the old version first, then tells you to click "Reload extension".
 set -euo pipefail
 
 ZIP="${1:-}"
-[ -n "$ZIP" ] && [ -f "$ZIP" ] || { echo "Usage: $0 path/to/tab-stash.zip"; exit 1; }
+[ -n "$ZIP" ] && [ -f "$ZIP" ] || { echo "Usage: $0 path/to/tabdepot.zip"; exit 1; }
 command -v unzip >/dev/null || { echo "Please install unzip (sudo apt install unzip)"; exit 1; }
 
 DEST="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

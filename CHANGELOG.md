@@ -3,6 +3,11 @@
 All notable changes to TabDepot (called Tab Stash before 2.1.3). Format based on [Keep a Changelog](https://keepachangelog.com/),
 versions follow [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH).
 
+## [2.1.4] - 2026-11-08
+### Changed
+- The GitHub repository is now `menachemshapiro/tabdepot`, and the updater checks there. The old address still redirects.
+- Release zips are now called `tabdepot-X.Y.Z.zip`. Each release also carries a `tab-stash-X.Y.Z.zip` copy for a while, so copies older than 2.1.3 can still update.
+
 ## [2.1.3] - 2026-11-08
 ### Changed
 - **Renamed to TabDepot.** The old name, Tab Stash, was already used by another extension that does something very similar (the Tab Stash add-on for Firefox by Josh Berry), so the name changed to avoid confusion. New tagline: *Store tabs. Clear space. Find them anytime.* The name changes in the toolbar, popup, stash page, menus and messages.
