@@ -248,3 +248,11 @@ body.triaging { overflow: hidden; }
 .trash-list { max-height: 50vh; overflow: auto; margin-bottom: 10px; }
 .trash-row { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; }
 .trash-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* settings sections */
+details.sec { margin-top: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 0 14px; }
+details.sec[open] { padding-bottom: 10px; }
+details.sec > summary { cursor: pointer; padding: 10px 0; font-weight: 600; font-size: 14px; list-style-position: inside; }
+details.sec .ver { font-weight: 400; color: var(--muted); margin-left: 6px; }
+details.sec .home { background: var(--panel); }
+.home-row.wrap { flex-wrap: wrap; }

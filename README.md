@@ -85,6 +85,37 @@ Pinned tabs are skipped by default (changeable in Settings). Chrome tab groups a
 - **Recently deleted** (Settings, off by default) keeps deleted tabs for 30 days.
 - Settings → *When I open several tabs at once* picks plain tabs, a Chrome tab group or a new window.
 
+## Settings
+
+Stash page → ⋯ → **Settings…**. The options are grouped in sections you can open and close.
+
+### Stashing
+- **Include pinned tabs when stashing many tabs.** Off by default, so “stash all tabs in this window” leaves your pinned tabs alone. Stashing one pinned tab on purpose always works.
+- **Keep Chrome tab groups as stash groups.** When you stash tabs that sit in a Chrome tab group, a stash group with the same name and colour is created (or reused) for them.
+- **Don't store the same link twice.** A link that is already stashed is not added again; the existing card is kept. Links that differ only by tracking parameters or a trailing slash count as the same.
+- **Fetch thumbnails from the web after stashing.** The thumbnail is fetched from the page's preview image (or YouTube's thumbnail) without opening or touching any tab. Turn it off to stash faster and use less network.
+- **Also screenshot tabs by visiting them (slow).** Off by default. TabDepot normally uses the screenshot it already took while you were looking at a tab. With this on, it briefly visits tabs it has no picture of. That is slow and can start a video playing.
+- **Auto-stash tabs unused for N days.** Every 30 minutes, tabs you have not looked at for N days (not pinned, not playing sound, not the active tab) are stashed. 0 turns it off.
+
+### Opening
+- **When I click a card.** *Open it and remove it from the stash* (default), *Open it and keep it in the stash*, or *Ask me each time*. Every card also has both buttons, and Alt-click does the opposite of this setting.
+- **When I open several tabs at once.** Used by “Open all”, the selection bar and group menus: as plain tabs in this window (default), as a Chrome tab group named after the stash group, or in a new window. The Open menu can still pick a different way for one action. One card always opens as a plain tab.
+- **When restoring several tabs, leave them unloaded until clicked.** Only the first tab loads; the others wait until you click them, so opening a big group does not slow the browser down.
+
+### Safety and backups
+- **Keep automatic safety snapshots.** A copy of your stash is saved every 30 minutes (only if something changed) and before risky actions such as bulk delete or import. A list of your open windows is saved every 10 minutes (only if it changed) and whenever you close a window. The last 40 stash snapshots and 30 window snapshots are kept, on this computer only. Open them with **Safety snapshots…**.
+- **Keep deleted tabs for 30 days (“Recently deleted”).** Off by default. When on, a tab you delete can be restored from **Recently deleted…** for 30 days. Tabs you open and remove from the stash do not go there. Thumbnails are fetched again after a restore.
+- **Show system notifications.** Reminders, auto-stash, and stashes made with a shortcut or the right-click menu show a notification from your operating system. Switching this off also silences reminders (the card still shows “Due”).
+- **Backups.** *Choose backup file…* picks a file (for example on your Desktop) that TabDepot keeps up to date a minute and a half after each change while a stash page is open. Pointing it at a folder that your sync app (Dropbox, Syncthing and so on) watches is an easy way to keep a copy on another computer. Thumbnails are not included; they are fetched again.
+
+### Start-up
+- **Open TabDepot in every new tab.** Browsers only allow this as a fixed extension setting, so it is a command: `bash ~/tab-stash/newtab.sh on` (and `off`), then reload the extension. Use your own folder name in the path.
+- **Use TabDepot as your home page.** Browsers do not let extensions set this. The dialog gives you the address and links to the browser pages where you paste it.
+
+### Updates and about
+- **What's new, Reload extension, Check for updates, Restore previous version.** *Reload extension* is for after you replace the files by hand. *Restore previous version* puts back the files saved before the last in-app update.
+- **Check GitHub for new versions.** At most every 6 hours, and it only asks GitHub for the number of the latest release. Switch it off if you never want TabDepot to contact GitHub (you can still use *Check for updates* yourself).
+
 ## Open TabDepot in every new tab
 
 Browsers only allow this as a fixed extension setting, so it is opt-in:

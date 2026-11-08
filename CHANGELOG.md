@@ -12,6 +12,7 @@ versions follow [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH).
 - **System notifications** (can be switched off in Settings) for reminders, for auto-stash, and for stashes made with a shortcut or the right-click menu. This adds the browser's *notifications* permission, so reload the extension once after updating.
 - **Open several tabs your way.** Settings → *When I open several tabs at once*: as plain tabs, as a Chrome tab group, or in a new window. The Open menu still lets you pick another way each time.
 - **Recently deleted** (off by default). Settings → *Keep deleted tabs for 30 days*. Tools menu or Settings → *Recently deleted…* lists them to restore or delete for good. Thumbnails are fetched again after a restore.
+- **Settings are tidier.** They are grouped into sections you can open and close (Stashing, Opening, Safety and backups, Start-up, Updates and about), with shorter labels. The README now explains every setting.
 ### Notes
 - Safety snapshots already skip a snapshot when nothing changed, and a window you close is already saved; nothing to change there.
 

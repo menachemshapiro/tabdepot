@@ -196,69 +196,85 @@
   <dialog id="dlgSettings">
     <form method="dialog">
       <h3>Settings</h3>
-      <label class="row"><input type="checkbox" id="sIncludePinned"> Include pinned tabs when stashing many tabs</label>
-      <label class="row"><input type="checkbox" id="sPreserve"> Keep Chrome tab groups as stash groups</label>
-      <label class="row"><input type="checkbox" id="sDedupe"> Don't store the same link twice</label>
-      <label class="row"><input type="checkbox" id="sFetch"> After stashing, fetch thumbnails from the web (YouTube thumbnails and each page's preview image; no tabs are touched)</label>
-      <label class="row"><input type="checkbox" id="sCapture"> Also screenshot tabs by visiting them (slow, and can start videos playing)</label>
-      <label>When I click a card
-        <select id="sOpenMode">
-          <option value="remove">Open it and remove it from the stash</option>
-          <option value="keep">Open it and keep it in the stash</option>
-          <option value="ask">Ask me each time</option>
-        </select>
-      </label>
-      <p class="hint">Whatever you pick, each card also has “Open &amp; remove” and “Open &amp; keep” buttons, and Alt-click does the opposite of this setting.</p>
-      <label class="row"><input type="checkbox" id="sLazy"> When restoring several tabs, leave them unloaded until clicked</label>
-      <label class="row">Auto-stash tabs unused for <input type="number" id="sAuto" min="0" max="365" class="num"> days (0 = off)</label>
-      <label>When I open several tabs at once
-        <select id="sOpenDest">
-          <option value="tabs">Open them as plain tabs in this window</option>
-          <option value="group">Open them as a Chrome tab group</option>
-          <option value="window">Open them in a new window</option>
-        </select>
-      </label>
-      <label class="row"><input type="checkbox" id="sNotify"> Show system notifications (reminders, auto-stash, shortcuts)</label>
-      <label class="row"><input type="checkbox" id="sSnap"> Keep automatic safety snapshots (stash history and open-tabs history)</label>
-      <label class="row"><input type="checkbox" id="sKeepDeleted"> Keep deleted tabs for 30 days in “Recently deleted” (off by default)</label>
-      <div class="home">
-        <strong>Backups</strong>
-        <p id="abStatus"></p>
-        <div class="home-row">
-          <button type="button" class="btn" id="abChoose">Choose backup file…</button>
-          <button type="button" class="btn" id="abNow">Back up now</button>
-          <button type="button" class="btn" id="abOff">Turn off</button>
-          <button type="button" class="btn" id="snapOpen">Safety snapshots…</button>
-          <button type="button" class="btn" id="trashOpen">Recently deleted…</button>
+      <details class="sec" open>
+        <summary>Stashing</summary>
+        <label class="row"><input type="checkbox" id="sIncludePinned"> Include pinned tabs when stashing many tabs</label>
+        <label class="row"><input type="checkbox" id="sPreserve"> Keep Chrome tab groups as stash groups</label>
+        <label class="row"><input type="checkbox" id="sDedupe"> Don't store the same link twice</label>
+        <label class="row" title="YouTube thumbnails and each page's preview image. No tabs are touched."><input type="checkbox" id="sFetch"> Fetch thumbnails from the web after stashing</label>
+        <label class="row" title="Slow, and can start videos playing."><input type="checkbox" id="sCapture"> Also screenshot tabs by visiting them (slow)</label>
+        <label class="row">Auto-stash tabs unused for <input type="number" id="sAuto" min="0" max="365" class="num"> days (0 = off)</label>
+      </details>
+
+      <details class="sec">
+        <summary>Opening</summary>
+        <label>When I click a card
+          <select id="sOpenMode">
+            <option value="remove">Open it and remove it from the stash</option>
+            <option value="keep">Open it and keep it in the stash</option>
+            <option value="ask">Ask me each time</option>
+          </select>
+        </label>
+        <p class="hint">Whatever you pick, each card also has “Open &amp; remove” and “Open &amp; keep” buttons, and Alt-click does the opposite of this setting.</p>
+        <label>When I open several tabs at once
+          <select id="sOpenDest">
+            <option value="tabs">Open them as plain tabs in this window</option>
+            <option value="group">Open them as a Chrome tab group</option>
+            <option value="window">Open them in a new window</option>
+          </select>
+        </label>
+        <label class="row"><input type="checkbox" id="sLazy"> When restoring several tabs, leave them unloaded until clicked</label>
+      </details>
+
+      <details class="sec">
+        <summary>Safety and backups</summary>
+        <label class="row"><input type="checkbox" id="sSnap"> Keep automatic safety snapshots</label>
+        <label class="row" title="Off by default. Thumbnails are fetched again after a restore."><input type="checkbox" id="sKeepDeleted"> Keep deleted tabs for 30 days (“Recently deleted”)</label>
+        <label class="row"><input type="checkbox" id="sNotify"> Show system notifications (reminders, auto-stash, shortcuts)</label>
+        <div class="home">
+          <strong>Backups</strong>
+          <p id="abStatus"></p>
+          <div class="home-row wrap">
+            <button type="button" class="btn" id="abChoose">Choose backup file…</button>
+            <button type="button" class="btn" id="abNow">Back up now</button>
+            <button type="button" class="btn" id="abOff">Turn off</button>
+            <button type="button" class="btn" id="snapOpen">Safety snapshots…</button>
+            <button type="button" class="btn" id="trashOpen">Recently deleted…</button>
+          </div>
         </div>
-      </div>
-      <div class="home">
-        <strong>Open TabDepot in every new tab</strong>
-        <p>Browsers only allow this as a fixed extension setting, so it is opt-in from the command line: run <code>bash ~/tab-stash/newtab.sh on</code>, then reload the extension. Use <code>off</code> to undo it.</p>
-      </div>
-      <div class="home">
-        <strong>Use TabDepot as your home page</strong>
-        <p>Browsers don't let extensions set this themselves. Copy the address below, then:</p>
-        <div class="home-row">
-          <input id="homeUrl" readonly>
-          <button type="button" class="btn" id="copyHome">Copy</button>
+      </details>
+
+      <details class="sec">
+        <summary>Start-up</summary>
+        <div class="home">
+          <strong>Open TabDepot in every new tab</strong>
+          <p>Browsers only allow this as a fixed extension setting, so it is opt-in from the command line: run <code>bash ~/tab-stash/newtab.sh on</code>, then reload the extension. Use <code>off</code> to undo it.</p>
         </div>
-        <ol>
-          <li>Start-up page: <button type="button" class="pk-link" id="openStartup">open “On startup” settings</button> → <em>Open a specific page</em> → <em>Add a new page</em> → paste.</li>
-          <li>Home button: <button type="button" class="pk-link" id="openAppearance">open “Appearance” settings</button> → turn on <em>Show home button</em> → <em>Enter custom web address</em> → paste.</li>
-        </ol>
-      </div>
-      <div class="home about">
-        <strong>TabDepot <span id="ver"></span></strong>
-        <div class="home-row">
+        <div class="home">
+          <strong>Use TabDepot as your home page</strong>
+          <p>Browsers don't let extensions set this themselves. Copy the address below, then:</p>
+          <div class="home-row">
+            <input id="homeUrl" readonly>
+            <button type="button" class="btn" id="copyHome">Copy</button>
+          </div>
+          <ol>
+            <li>Start-up page: <button type="button" class="pk-link" id="openStartup">open “On startup” settings</button> → <em>Open a specific page</em> → <em>Add a new page</em> → paste.</li>
+            <li>Home button: <button type="button" class="pk-link" id="openAppearance">open “Appearance” settings</button> → turn on <em>Show home button</em> → <em>Enter custom web address</em> → paste.</li>
+          </ol>
+        </div>
+      </details>
+
+      <details class="sec about">
+        <summary>Updates and about <span id="ver" class="ver"></span></summary>
+        <div class="home-row wrap">
           <button type="button" class="btn" id="whatsNew">What's new</button>
           <button type="button" class="btn" id="reloadExt" title="Use after replacing the extension's files with a newer version">Reload extension</button>
           <button type="button" class="btn" id="checkUpdate">Check for updates</button>
           <button type="button" class="btn" id="rollbackUpdate" title="Put back the files saved before the last in-app update">Restore previous version</button>
         </div>
         <p id="updStatus" class="hint"></p>
-        <label class="row"><input type="checkbox" id="sUpdates"> Look for new versions on GitHub (at most every 6 hours; only asks GitHub for the latest release number)</label>
-      </div>
+        <label class="row" title="Only asks GitHub for the latest release number."><input type="checkbox" id="sUpdates"> Check GitHub for new versions (every 6 hours at most)</label>
+      </details>
       <menu>
         <button value="cancel" class="btn" formnovalidate>Cancel</button>
         <button value="ok" class="btn primary">Save</button>
