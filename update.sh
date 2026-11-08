@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Update Tab Stash in place from a newer zip.
+# Update TabDepot in place from a newer zip.
 #   ./update.sh ~/Downloads/tab-stash.zip
 # Keeps the folder path (so the extension stays "the same" in the browser), saves a
 # backup of the old version first, then tells you to click "Reload extension".
@@ -42,7 +42,7 @@ else
 fi
 chmod +x "$DEST/update.sh" "$DEST/newtab.sh" 2>/dev/null || true
 if [ "$NEWTAB" = 1 ] && [ -f "$DEST/newtab.sh" ]; then
-  bash "$DEST/newtab.sh" on >/dev/null && echo "Kept your \"open Tab Stash in new tabs\" setting."
+  bash "$DEST/newtab.sh" on >/dev/null && echo "Kept your \"open TabDepot in new tabs\" setting."
 fi
 
 echo

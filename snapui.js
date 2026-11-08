@@ -25,7 +25,7 @@ async function renderList() {
   const tabBtn = (id, label) => h('button', { type: 'button', class: 'seg' + (tab === id ? ' on' : ''), text: label, onclick: () => { tab = id; renderList(); } });
   root.replaceChildren(
     h('h3', { text: 'Safety snapshots' }),
-    h('p', { class: 'hint', text: 'Tab Stash quietly keeps copies so a mistake is never final. They stay on this computer, in the browser’s storage.' }),
+    h('p', { class: 'hint', text: 'TabDepot quietly keeps copies so a mistake is never final. They stay on this computer, in the browser’s storage.' }),
     h('div', { class: 'segs' }, tabBtn('stash', 'Stash history'), tabBtn('tabs', 'Open tabs history')),
     h(
       'div',

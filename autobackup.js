@@ -5,7 +5,7 @@
 import { idbGet, idbPut, idbDel } from './common.js';
 
 const KEY = 'autobackupHandle';
-export const FILE_TYPES = [{ description: 'Tab Stash backup', accept: { 'application/json': ['.json'] } }];
+export const FILE_TYPES = [{ description: 'TabDepot backup', accept: { 'application/json': ['.json'] } }];
 export const supported = () => typeof window.showSaveFilePicker === 'function';
 
 export const getHandle = () => idbGet('meta', KEY);
@@ -13,7 +13,7 @@ export const lastRun = () => idbGet('meta', 'autobackupTs');
 export const turnOff = () => idbDel('meta', KEY);
 
 export async function chooseFile() {
-  const handle = await window.showSaveFilePicker({ suggestedName: 'tab-stash-autobackup.json', startIn: 'desktop', types: FILE_TYPES });
+  const handle = await window.showSaveFilePicker({ suggestedName: 'tabdepot-autobackup.json', startIn: 'desktop', types: FILE_TYPES });
   await idbPut('meta', KEY, handle);
   return handle;
 }

@@ -43,7 +43,7 @@ function setupMenus() {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({ id: 'stash-page', title: 'Stash this tab', contexts: ['page'] });
     chrome.contextMenus.create({ id: 'stash-link', title: 'Stash this link', contexts: ['link'] });
-    chrome.contextMenus.create({ id: 'open-stash', title: 'Open Tab Stash', contexts: ['action'] });
+    chrome.contextMenus.create({ id: 'open-stash', title: 'Open TabDepot', contexts: ['action'] });
   });
 }
 

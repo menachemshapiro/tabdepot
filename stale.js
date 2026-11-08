@@ -25,7 +25,7 @@ function show(state, disk) {
     h('div', { class: 'banner' },
       h('span', {
         text: state === 'page'
-          ? 'Tab Stash was updated while this page was open, so this page is running old code. Reload it to use the new version.'
+          ? 'TabDepot was updated while this page was open, so this page is running old code. Reload it to use the new version.'
           : `Version ${disk} is installed in the folder, but the extension is still running ${LOADED}.`,
       }),
       state === 'page'

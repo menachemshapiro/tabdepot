@@ -159,7 +159,7 @@ export async function refreshAutobackupStatus() {
   $('#abChoose').textContent = handle ? 'Change file…' : 'Choose backup file…';
   status.textContent = handle
     ? `Saving automatically to “${handle.name}” a minute after each change${ts ? ` · last saved ${ago(ts)}` : ''}. Thumbnails are not included (they are re-fetched).`
-    : 'Not set up. Pick a file (for example on your Desktop) and Tab Stash keeps it up to date while a stash page is open.';
+    : 'Not set up. Pick a file (for example on your Desktop) and TabDepot keeps it up to date while a stash page is open.';
 }
 
 export async function openSettings(hooks = {}) {

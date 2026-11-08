@@ -312,7 +312,7 @@ function renderMain() {
     main.append(
       h('div', { class: 'welcome' },
         h('h2', { text: 'Your stash is empty' }),
-        h('p', {}, 'Click the Tab Stash button in the toolbar to stash the current tab, a whole window, or everything at once. Or press ', h('kbd', { text: 'Alt+Shift+S' }), ' to stash the tab you are on.'),
+        h('p', {}, 'Click the TabDepot button in the toolbar to stash the current tab, a whole window, or everything at once. Or press ', h('kbd', { text: 'Alt+Shift+S' }), ' to stash the tab you are on.'),
         h('p', {}, 'Stashed tabs are closed, so they use no memory at all. Come back here to search, group and reopen them.'),
         h('div', { style: { display: 'flex', gap: '10px', justifyContent: 'center' } },
           h('button', { class: 'btn primary', onclick: openPicker }, 'Choose tabs to stash…'),
@@ -929,7 +929,7 @@ async function checkOtherPages() {
     setBanner(
       'multi',
       h('div', { class: 'banner' },
-        h('span', { text: `Tab Stash is also open in ${tabs.length === 1 ? 'another tab' : tabs.length + ' other tabs'}. Both stay in sync automatically.` }),
+        h('span', { text: `TabDepot is also open in ${tabs.length === 1 ? 'another tab' : tabs.length + ' other tabs'}. Both stay in sync automatically.` }),
         h('button', { class: 'btn small', text: 'Go there', onclick: () => { chrome.tabs.update(tabs[0].id, { active: true }); chrome.windows.update(tabs[0].windowId, { focused: true }); } }),
         h('button', { class: 'btn small', text: tabs.length === 1 ? 'Close the other one' : 'Close the others', onclick: () => chrome.tabs.remove(tabs.map((t) => t.id)) }),
         h('button', { class: 'btn small', text: 'Dismiss', onclick: () => { sessionStorage.setItem('multiDismissed', tabs.length); setBanner('multi', null); } }))
@@ -976,7 +976,7 @@ async function announceUpdate() {
   const { updatedFrom } = await chrome.storage.local.get('updatedFrom');
   if (!updatedFrom) return;
   await chrome.storage.local.remove('updatedFrom');
-  toast(`Tab Stash updated ${updatedFrom} → ${chrome.runtime.getManifest().version}`, { label: "What's new", onClick: showChanges });
+  toast(`TabDepot updated ${updatedFrom} → ${chrome.runtime.getManifest().version}`, { label: "What's new", onClick: showChanges });
 }
 
 (async function boot() {

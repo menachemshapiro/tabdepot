@@ -32,7 +32,7 @@ export async function buildBackup(state, items, { thumbs = true, allGroups = fal
     out.push(copy);
   }
   return {
-    app: 'tab-stash',
+    app: 'tabdepot',
     version: 3,
     exportedAt: new Date().toISOString(),
     groups: state.groups.filter((g) => used.has(g.id)),
@@ -41,7 +41,7 @@ export async function buildBackup(state, items, { thumbs = true, allGroups = fal
   };
 }
 
-// Accepts a Tab Stash backup (any version) or any text containing links.
+// Accepts a TabDepot backup (any version) or any text containing links.
 export function parseBackup(text) {
   try {
     const data = JSON.parse(text);

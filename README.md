@@ -1,6 +1,8 @@
-# Tab Stash
+# TabDepot
 
-> Chrome plugin. A way to get my tabs out of my browser, saving processing power and memory, while still having them easily accessible and searchable
+**Store tabs. Clear space. Find them anytime.**
+
+Your tabs, organized and ready when you need them.
 
 Move open tabs into a visual stash page. Stashed tabs are **closed**, so they use no memory and no CPU. Come back to the stash to search, group and reopen them.
 
@@ -10,12 +12,12 @@ Works in Chrome, Edge, Brave, Opera, Vivaldi and other Chromium browsers (Chrome
 
 1. Unzip this folder somewhere permanent (the browser reads it from there).
 2. Open `chrome://extensions` (or `edge://extensions`, `brave://extensions`).
-3. Turn on **Developer mode**, click **Load unpacked**, pick the `tab-stash` folder.
+3. Turn on **Developer mode**, click **Load unpacked**, pick the extension folder (the one containing `manifest.json`).
 4. Pin the extension to the toolbar. The stash page opens automatically the first time.
 
 ## Updating to a newer version
 
-**From inside the extension (2.1+):** a banner on the stash page announces a new release; click **Update now**. The first time, pick your Tab Stash folder in the dialog (the one you loaded in `chrome://extensions`, for example `~/tab-stash`). The files are replaced, the old ones are kept in `previous-version/` (Settings → *Restore previous version* undoes it), and the extension reloads itself. Settings → *Check for updates* checks on demand; the automatic check (at most every 6 hours, only asks GitHub for the latest release number) can be switched off there.
+**From inside the extension (2.1+):** a banner on the stash page announces a new release; click **Update now**. The first time, pick your TabDepot folder in the dialog (the one you loaded in `chrome://extensions`, for example `~/tab-stash`). The files are replaced, the old ones are kept in `previous-version/` (Settings → *Restore previous version* undoes it), and the extension reloads itself. Settings → *Check for updates* checks on demand; the automatic check (at most every 6 hours, only asks GitHub for the latest release number) can be switched off there.
 
 **From the terminal (any version):**
 
@@ -66,7 +68,7 @@ Pinned tabs are skipped by default (changeable in Settings). Chrome tab groups a
 - **Triage** (`t` or the button): one tab at a time. → keep, `d` delete, `o` open and remove, Shift+`O` open and keep, `1`–`9` add to that group, `n` note, `u` undo, Esc leave.
 - **Link checker** (⋯ → Check all links): marks dead pages (404/410, removed YouTube videos), restricted pages (login or region blocks) and unreachable ones; filter by link status to review them.
 - **Duplicates** are recognised even with tracking parameters, `www.` or `youtu.be` links; ⋯ → *Merge duplicate links* combines them (groups and notes are merged).
-- If Tab Stash is open in **more than one tab**, a notice says so and the pages stay in sync.
+- If TabDepot is open in **more than one tab**, a notice says so and the pages stay in sync.
 - Light and dark theme follow your system.
 
 ## Safety nets
@@ -75,7 +77,7 @@ Pinned tabs are skipped by default (changeable in Settings). Chrome tab groups a
 - **Automatic backup file**: Settings → Backups → *Choose backup file…* (for example on your Desktop). Kept up to date about a minute after each change while a stash page is open. After a browser restart the browser may ask permission again; a notice with an *Allow* button appears.
 - **Undo** covers moves, group changes, notes, deletes, reordering and merges.
 
-## Open Tab Stash in every new tab
+## Open TabDepot in every new tab
 
 Browsers only allow this as a fixed extension setting, so it is opt-in:
 

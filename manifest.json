@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwFT6qHiF2keTIJKJ5vRuZaIcX3yktLz5AgBYL7JrpUWLidP6q1nM3Cl9TRfVrApchYHm3ehMXDy9nsI4rSzzZ9Fcm1gjRXXaSYW4+oDkUVKjRJFmGwYhdvvdBK7MGXmkCbvDJIQmOiQgDVpH4ZBdzsF34Jmlb++1RU3/V/lIviGm2HC6wLL33enB+wFlmcuEI0DDDXBAv1Cj6b00PKfJGGmr9QI1agx8eao0xLxJgGrOyVPVEld+HfmCMCPOoWha9ygp0JC9Pp9OgWqFO8o3vrq48pQ/N7zmahV48Nt63Dd6JxZundzVhGVum41WyMkrnw++cc5UpJrrBnnYI3w1AwIDAQAB",
-  "name": "Tab Stash",
-  "version": "2.1.2",
-  "description": "Move open tabs into a lightweight visual stash that uses no memory. Group, search, restore or delete them any time.",
+  "name": "TabDepot",
+  "version": "2.1.3",
+  "description": "Store tabs. Clear space. Find them anytime. Your tabs, organized and ready when you need them.",
   "minimum_chrome_version": "110",
   "permissions": [
     "tabs",
@@ -23,7 +23,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "Tab Stash",
+    "default_title": "TabDepot",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
@@ -41,17 +41,17 @@
       "suggested_key": {
         "default": "Alt+Shift+S"
       },
-      "description": "Stash the current tab"
+      "description": "Store tabs. Clear space. Find them anytime. Your tabs, organized and ready when you need them."
     },
     "stash-window": {
-      "description": "Stash all tabs in this window"
+      "description": "Store tabs. Clear space. Find them anytime. Your tabs, organized and ready when you need them."
     },
     "open-stash": {
       "suggested_key": {
         "default": "Alt+Shift+O"
       },
-      "description": "Open the stash"
+      "description": "Store tabs. Clear space. Find them anytime. Your tabs, organized and ready when you need them."
     }
   },
-  "version_name": "2.1.2"
+  "version_name": "2.1.3"
 }

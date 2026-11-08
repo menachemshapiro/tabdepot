@@ -217,7 +217,7 @@ const slug = (str) => str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|
 // Opens a "Save as" dialog (starting at your Desktop) and writes a backup including thumbnails.
 export async function saveBackup(items = app.state.items, label = 'all') {
   if (!items.length) return toast('Nothing to back up yet');
-  const name = `tab-stash-${slug(label)}-${new Date().toISOString().slice(0, 10)}.json`;
+  const name = `tabdepot-${slug(label)}-${new Date().toISOString().slice(0, 10)}.json`;
   let handle = null;
   // The picker must be opened straight from the click, before any slow work.
   if (window.showSaveFilePicker) {
@@ -272,7 +272,7 @@ export function exportMarkdown() {
   }
   const rest = app.state.items.filter((i) => !i.groupIds.length);
   if (rest.length) lines.push('## Ungrouped', ...rest.map(line), '');
-  download('tab-stash.md', lines.join('\n'), 'text/markdown');
+  download('tabdepot.md', lines.join('\n'), 'text/markdown');
 }
 
 /* ------------------------------------------------------------- auto-backup */

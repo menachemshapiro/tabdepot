@@ -14,7 +14,7 @@ function bannerFor(info) {
   setBanner(
     'update',
     h('div', { class: 'banner' },
-      h('span', { text: `Tab Stash ${info.latest} is available (you have ${info.current}).` }),
+      h('span', { text: `TabDepot ${info.latest} is available (you have ${info.current}).` }),
       up.supported() && info.zipUrl ? h('button', { class: 'btn small', text: 'Update now', onclick: () => run(info) }) : h('span', { class: 'hint', text: manualHelp(info.latest) }),
       info.url && h('a', { class: 'btn small', href: info.url, target: '_blank', rel: 'noreferrer', text: 'What’s new' }),
       h('button', { class: 'btn small', text: 'Later', onclick: () => { localStorage.setItem('updateDismissed', info.latest); setBanner('update', null); } }))

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Open Tab Stash in every new tab (opt-in).
+# Open TabDepot in every new tab (opt-in).
 #   bash newtab.sh on       turn it on
 #   bash newtab.sh off      turn it off again
 #   bash newtab.sh status

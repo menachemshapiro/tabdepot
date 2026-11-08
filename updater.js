@@ -1,4 +1,4 @@
-// Update Tab Stash from inside the extension.
+// Update TabDepot from inside the extension.
 //   1. Ask GitHub for the latest release (once every few hours, or on demand).
 //   2. Download the release zip and unpack it in memory.
 //   3. Write the files into the extension's own folder (you grant access to it once with a folder picker),
@@ -36,7 +36,7 @@ export async function checkForUpdate({ api = API } = {}) {
   if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
   const rel = await res.json();
   const latest = String(rel.tag_name || '').replace(/^v/, '');
-  const asset = (rel.assets || []).find((a) => /^tab-stash-.*\.zip$/.test(a.name));
+  const asset = (rel.assets || []).find((a) => /^(tab-stash|tabdepot)-.*\.zip$/.test(a.name));
   const info = {
     current: current(),
     latest,
@@ -141,7 +141,7 @@ export async function verifyFolder(root) {
   try {
     m = await readJson(root, 'manifest.json');
   } catch {
-    throw new Error('That folder has no manifest.json. Pick the Tab Stash folder (the one you loaded in chrome://extensions).');
+    throw new Error('That folder has no manifest.json. Pick the TabDepot folder (the one you loaded in chrome://extensions).');
   }
   const mine = chrome.runtime.getManifest();
   if (m.name !== mine.name || (mine.key && m.key !== mine.key)) throw new Error('That does not look like this extension’s folder. Pick the folder you loaded in chrome://extensions.');
