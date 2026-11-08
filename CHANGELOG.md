@@ -3,6 +3,10 @@
 All notable changes to TabDepot (called Tab Stash before 2.1.3). Format based on [Keep a Changelog](https://keepachangelog.com/),
 versions follow [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH).
 
+## [2.2.1] - 2026-11-08
+### Changed
+- **Every section of the ⋯ menu can be folded** (Tidy up, Check, Import and export, Backup and safety, Help), with an **Expand all / Collapse all** button at the top. The settings dialog has the same button.
+
 ## [2.2.0] - 2026-11-08
 ### Added
 - **Import links from pasted text.** Tools menu → *Import links from pasted text…*: paste a list of URLs, an email, Markdown, a OneTab export (`URL | title`) or the HTML of a page. Every link is found (titles are kept where the text has them) and you can add them straight to a group.

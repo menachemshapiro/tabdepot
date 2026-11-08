@@ -812,15 +812,18 @@ function triage(ids) {
 
 function toolsMenu(anchor) {
   showMenu(anchor, [
-    { head: 'Tidy up' },
-    { label: 'Undo last change (Ctrl+Z)', onClick: doUndo },
-    { label: 'Triage: go through tabs one by one', onClick: () => triage() },
-    { label: 'Group ungrouped tabs by site', onClick: act.autoGroupBySite },
-    { label: 'Merge duplicate links', onClick: act.mergeDuplicates },
-    { head: 'Check' },
-    { label: ui.selected.size ? 'Check links of selected tabs' : 'Check all links for dead pages', onClick: () => act.runLinkCheck(ui.selected.size ? selectedItems() : app.state.items) },
-    { label: 'Fetch missing thumbnails now', onClick: act.fetchThumbsNow },
-    { section: 'Import and export', items: [
+    { toggleAll: true },
+    { section: 'Tidy up', items: [
+      { label: 'Undo last change (Ctrl+Z)', onClick: doUndo },
+      { label: 'Triage: go through tabs one by one', onClick: () => triage() },
+      { label: 'Group ungrouped tabs by site', onClick: act.autoGroupBySite },
+      { label: 'Merge duplicate links', onClick: act.mergeDuplicates },
+    ] },
+    { section: 'Check', items: [
+      { label: ui.selected.size ? 'Check links of selected tabs' : 'Check all links for dead pages', onClick: () => act.runLinkCheck(ui.selected.size ? selectedItems() : app.state.items) },
+      { label: 'Fetch missing thumbnails now', onClick: act.fetchThumbsNow },
+    ] },
+    { section: 'Import and export', open: false, items: [
       { head: 'Import' },
       { label: 'Import links from pasted text…', onClick: act.pasteLinks },
       { label: 'Import links or bookmarks from a file…', onClick: () => $('#importFile').click() },
@@ -829,15 +832,17 @@ function toolsMenu(anchor) {
       { label: 'Export links as plain text', onClick: act.exportPlainLinks },
       { label: 'Export as a bookmarks file (HTML)', onClick: act.exportBookmarks },
     ] },
-    { head: 'Backup and safety' },
-    { label: 'Back up stash to a file…', onClick: () => act.saveBackup() },
-    { label: 'Restore from a backup file…', onClick: act.restoreBackup },
-    { label: 'Safety snapshots…', onClick: () => openSnapshots() },
-    { label: 'Recently deleted…', onClick: () => openTrash(refresh) },
-    { head: 'Help' },
-    { label: 'Keyboard shortcuts (?)', onClick: () => $('#dlgHelp').showModal() },
-    { label: 'Help guide (opens GitHub)', onClick: () => window.open(`https://github.com/${REPO}/blob/main/docs/HELP.md`, '_blank', 'noopener') },
-    { label: 'Settings…', onClick: () => openSettings({ onSaved: () => { applySettings(); scheduleRender(); } }) },
+    { section: 'Backup and safety', items: [
+      { label: 'Back up stash to a file…', onClick: () => act.saveBackup() },
+      { label: 'Restore from a backup file…', onClick: act.restoreBackup },
+      { label: 'Safety snapshots…', onClick: () => openSnapshots() },
+      { label: 'Recently deleted…', onClick: () => openTrash(refresh) },
+    ] },
+    { section: 'Help', items: [
+      { label: 'Keyboard shortcuts (?)', onClick: () => $('#dlgHelp').showModal() },
+      { label: 'Help guide (opens GitHub)', onClick: () => window.open(`https://github.com/${REPO}/blob/main/docs/HELP.md`, '_blank', 'noopener') },
+      { label: 'Settings…', onClick: () => openSettings({ onSaved: () => { applySettings(); scheduleRender(); } }) },
+    ] },
   ]);
 }
 

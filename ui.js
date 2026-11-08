@@ -80,7 +80,8 @@ export function closeMenu() {
 const sectionOpen = new Map();
 
 // entries: { label, onClick, danger, disabled } | { head } | { sep } | falsy (skipped) |
-//          { section: 'Title', items: [...entries], open: false }  (a heading that folds its items away)
+//          { section: 'Title', items: [...entries], open: true }  (a heading that folds its items away) |
+//          { toggleAll: true }  (one button that opens or folds every section of this menu)
 export function showMenu(anchor, entries) {
   closeMenu();
   const m = h('div', { class: 'menu', role: 'menu' });
@@ -98,24 +99,42 @@ export function showMenu(anchor, entries) {
     m.style.left = Math.max(8, x) + 'px';
     m.style.top = y + 'px';
   };
+  const sections = []; // { title, head, body }
+  let toggleBtn = null;
+  const setOpen = (s, open) => {
+    s.body.hidden = !open;
+    s.head.setAttribute('aria-expanded', String(open));
+    s.head.firstChild.textContent = open ? '▾' : '▸';
+    sectionOpen.set(s.title, open);
+  };
+  const refreshToggle = () => {
+    if (toggleBtn) toggleBtn.textContent = sections.every((s) => !s.body.hidden) ? 'Collapse all' : 'Expand all';
+  };
   for (const e of entries.filter(Boolean)) {
-    if (!e.section) {
-      m.append(item(e));
-      continue;
-    }
-    const open = sectionOpen.has(e.section) ? sectionOpen.get(e.section) : !!e.open;
-    const body = h('div', { class: 'menu-body', hidden: !open }, e.items.filter(Boolean).map(item));
-    const head = h('button', { class: 'menu-section', 'aria-expanded': String(open) }, h('span', { class: 'chev', text: open ? '▾' : '▸' }), e.section);
-    head.addEventListener('click', () => {
-      const now = body.hidden; // currently closed -> open it
-      body.hidden = !now;
-      head.setAttribute('aria-expanded', String(now));
-      head.firstChild.textContent = now ? '▾' : '▸';
-      sectionOpen.set(e.section, now);
-      place();
-    });
-    m.append(head, body);
+    if (e.toggleAll) {
+      toggleBtn = h('button', { class: 'menu-toggle-all', onclick: () => {
+        const open = !sections.every((s) => !s.body.hidden);
+        for (const s of sections) setOpen(s, open);
+        refreshToggle();
+        place();
+      } });
+      m.append(toggleBtn);
+    } else if (e.section) {
+      const open = sectionOpen.has(e.section) ? sectionOpen.get(e.section) : e.open !== false;
+      const body = h('div', { class: 'menu-body' }, e.items.filter(Boolean).map(item));
+      const head = h('button', { class: 'menu-section' }, h('span', { class: 'chev' }), e.section);
+      const s = { title: e.section, head, body };
+      sections.push(s);
+      setOpen(s, open);
+      head.addEventListener('click', () => {
+        setOpen(s, body.hidden);
+        refreshToggle();
+        place();
+      });
+      m.append(head, body);
+    } else m.append(item(e));
   }
+  refreshToggle();
   document.body.append(m);
   place();
   openMenu = m;

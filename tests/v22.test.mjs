@@ -142,6 +142,14 @@ export default async function () {
   await sp.evaluate(async () => (await import('./dialogs.js')).openSettings());
   await sleep(200);
   const vals = await sp.evaluate(() => ({ dest: document.querySelector('#sOpenDest').value, notify: document.querySelector('#sNotify').checked, keep: document.querySelector('#sKeepDeleted').checked }));
+  const tg = async () => sp.evaluate(() => ({ btn: document.querySelector('#sToggleAll').textContent, open: [...document.querySelectorAll('#dlgSettings details.sec')].map((d) => d.open) }));
+  const g0 = await tg();
+  await sp.click('#sToggleAll');
+  const g1 = await tg();
+  await sp.click('#sToggleAll');
+  const g2 = await tg();
+  check('settings: Expand all / Collapse all button', g0.btn === 'Expand all' && g1.open.every(Boolean) && g1.btn === 'Collapse all' && g2.open.every((x) => !x) && g2.btn === 'Expand all', JSON.stringify([g0, g1, g2]));
+  await sp.evaluate(() => document.querySelectorAll('#dlgSettings details.sec').forEach((d) => (d.open = true)));
   check('settings show the defaults', vals.dest === 'tabs' && vals.notify === true && vals.keep === false, JSON.stringify(vals));
   await sp.evaluate(() => {
     document.querySelector('#sOpenDest').value = 'window';
@@ -233,10 +241,20 @@ export default async function () {
   // the tools menu is grouped under headings
   await sp.click('#toolsBtn');
   await sleep(200);
-  const heads = await sp.$$eval('.menu > .menu-head', (e) => e.map((x) => x.textContent));
-  check('tools menu has headed groups', heads.join() === 'Tidy up,Check,Backup and safety,Help', heads.join());
-  const sec = await sp.evaluate(() => { const b = document.querySelector('.menu-section'); const body = b.nextElementSibling; const before = body.hidden; b.click(); const after = body.hidden; return [b.textContent, before, after, body.textContent.includes('Import links from pasted text') && body.textContent.includes('Export as Markdown')]; });
-  check('Import and export is one section, closed at first and opens on click', sec[0].includes('Import and export') && sec[1] === true && sec[2] === false && sec[3] === true, JSON.stringify(sec));
+  const titles = await sp.$$eval('.menu .menu-section', (e) => e.map((x) => x.textContent.replace(/^[▾▸]/, '')));
+  check('every tools-menu group is a section', titles.join() === 'Tidy up,Check,Import and export,Backup and safety,Help', titles.join());
+  const menuState = () => sp.evaluate(() => ({ btn: document.querySelector('.menu-toggle-all').textContent, open: [...document.querySelectorAll('.menu .menu-body')].map((b) => !b.hidden) }));
+  const s0 = await menuState();
+  check('Import and export starts folded, the rest open; button offers Expand all', s0.open.join() === 'true,true,false,true,true' && s0.btn === 'Expand all', JSON.stringify(s0));
+  await sp.click('.menu-toggle-all');
+  const s1 = await menuState();
+  check('Expand all opens everything and then offers Collapse all', s1.open.every(Boolean) && s1.btn === 'Collapse all', JSON.stringify(s1));
+  await sp.click('.menu-toggle-all');
+  const s2 = await menuState();
+  check('Collapse all folds everything and then offers Expand all', s2.open.every((x) => !x) && s2.btn === 'Expand all', JSON.stringify(s2));
+  await sp.evaluate(() => document.querySelectorAll('.menu-section')[1].click());
+  const s3 = await menuState();
+  check('one section opens on its own', s3.open.join() === 'false,true,false,false,false', JSON.stringify(s3));
   await sp.evaluate(() => document.querySelector('.menu')?.remove());
   const man = await sp.evaluate(() => chrome.runtime.getManifest());
   const cmds = Object.values(man.commands).map((c) => c.description);

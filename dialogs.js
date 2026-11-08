@@ -275,6 +275,20 @@ export async function refreshAutobackupStatus() {
     : 'Not set up. Pick a file (for example on your Desktop) and TabDepot keeps it up to date while a stash page is open.';
 }
 
+// "Expand all / Collapse all" for the sections of the settings dialog.
+function wireToggleAll() {
+  const secs = [...document.querySelectorAll('#dlgSettings details.sec')];
+  const btn = $('#sToggleAll');
+  const refresh = () => (btn.textContent = secs.every((d) => d.open) ? 'Collapse all' : 'Expand all');
+  secs.forEach((d) => (d.ontoggle = refresh));
+  btn.onclick = () => {
+    const open = !secs.every((d) => d.open);
+    secs.forEach((d) => (d.open = open));
+    refresh();
+  };
+  refresh();
+}
+
 export async function openSettings(hooks = {}) {
   const s = (app.settings = await getSettings());
   $('#sIncludePinned').checked = s.includePinned;
@@ -285,6 +299,7 @@ export async function openSettings(hooks = {}) {
   $('#sOpenMode').value = s.openMode;
   $('#sLazy').checked = s.lazyRestore;
   $('#sSnap').checked = s.snapshots;
+  wireToggleAll();
   $('#sOpenDest').value = s.openDest;
   $('#sNotify').checked = s.notifications;
   $('#sKeepDeleted').checked = s.keepDeleted;

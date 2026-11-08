@@ -199,13 +199,15 @@ The **Open** menu (also on each group's **Open ▾** button) has two halves: *Op
 
 ## The ⋯ menu
 
-The tools menu, in groups. **Import and export** is one section that starts folded; click its heading to unfold it (it stays as you leave it while the page is open).
+The tools menu is made of sections. **Click a section heading** (▾ / ▸) to fold or unfold it, or use **Expand all / Collapse all** at the top to do every section at once. *Import and export* starts folded; the rest start open. The menu remembers how you left it while the page is open.
 
 ![The tools menu](images/tools-menu.png)
 
-![The tools menu with Import and export unfolded](images/tools-menu-import-export.png)
+![Everything unfolded](images/tools-menu-expanded.png)
 
-**Tidy up**
+![Everything folded](images/tools-menu-collapsed.png)
+
+**Tidy up** (a section; the others work the same way)
 - **Undo last change (Ctrl+Z).** Reverses the last change. Up to 60 steps are remembered while the page is open.
 - **Triage: go through tabs one by one.** See [Triage mode](#triage-mode).
 - **Group ungrouped tabs by site.** Makes a group for each website that has two or more ungrouped tabs (or, if cards are selected, from the selection).
@@ -215,7 +217,7 @@ The tools menu, in groups. **Import and export** is one section that starts fold
 - **Check all links for dead pages** (or *Check links of selected tabs* when some are selected). Asks each website whether the page still exists, without opening it. Progress shows at the top with a *Stop* button. Results appear as badges and in the **Link** filter.
 - **Fetch missing thumbnails now.** Looks for pictures for cards that have none.
 
-**Import and export** (click the heading to fold or unfold)
+**Import and export** (folded at first)
 - **Import links from pasted text…** See [Import links from text](#import-links-from-text).
 - **Import links or bookmarks from a file…** Reads a TabDepot backup (`.json`), a text file of links (`.txt`), or a browser bookmarks file (`.html`, from Chrome, Edge, Firefox or Safari: folders become groups). Links you already have are not added again; their groups are merged. A safety snapshot is taken first.
 
@@ -309,7 +311,7 @@ When you reach the end you get a summary of how many you kept, deleted, opened a
 
 ## Settings
 
-Open it from the ⋯ menu, from the popup, or with the *Settings* button. The options are in sections you can open and close.
+Open it from the ⋯ menu, from the popup, or with the *Settings* button. The options are in sections you can open and close; **Expand all / Collapse all** at the top of the dialog does every section at once. Only *Stashing* is open when the dialog first opens.
 
 ![Settings, with every section open](images/settings-expanded.png)
 

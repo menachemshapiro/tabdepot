@@ -88,7 +88,8 @@ await shot('overview');
 // ---- header menus
 await page.click('#stashBtn'); await sleep(200); await around('stash-menu', '#stashBtn'); await closeAll();
 await page.click('#toolsBtn'); await sleep(200); await around('tools-menu', '#toolsBtn');
-await page.click('.menu-section'); await sleep(200); await around('tools-menu-import-export', '#toolsBtn'); await closeAll();
+await page.click('.menu-toggle-all'); await sleep(200); await around('tools-menu-expanded', '#toolsBtn');
+await page.click('.menu-toggle-all'); await sleep(200); await around('tools-menu-collapsed', '#toolsBtn'); await closeAll();
 // ---- filters (with a couple active)
 await page.type('#fSite', 'example.com'); await page.click('#fNote'); await sleep(400);
 await shot('filters', { clip: { x: 0, y: 0, width: 1240, height: 150 } });
@@ -148,13 +149,14 @@ await page.evaluate(async () => { const { listTrash, restoreFromTrash } = await 
 // safety snapshots
 await page.evaluate(async () => { const s = await import('./snapshots.js'); await s.takeStashSnapshot('before: bulk delete'); await s.takeTabsSnapshot('window closed', [{ id: 1, tabs: [{ url: 'https://news.example.com/', title: 'News', pinned: false, group: '' }, { url: 'https://mail.example.com/', title: 'Mail', pinned: true, group: '' }] }]); });
 await page.evaluate(() => document.querySelector('#toolsBtn').click()); await sleep(150);
+await page.click('.menu-toggle-all'); await sleep(150);
 await clickText('.menu-item', 'Safety snapshots'); await sleep(500);
 await dialog('snapshots', '#dlgSnap').catch(async () => shot('snapshots'));
 await closeAll();
 // ---- settings
 await page.evaluate(async () => (await import('./dialogs.js')).openSettings()); await sleep(400);
 await dialog('settings', '#dlgSettings');
-await page.evaluate(() => document.querySelectorAll('#dlgSettings details').forEach((d) => (d.open = true))); await sleep(250);
+await page.click('#sToggleAll'); await sleep(250);
 await page.setViewport({ width: 1240, height: 1900 });
 await dialog('settings-expanded', '#dlgSettings');
 await page.setViewport({ width: 1240, height: 820 });
