@@ -77,6 +77,14 @@ Pinned tabs are skipped by default (changeable in Settings). Chrome tab groups a
 - **Automatic backup file**: Settings → Backups → *Choose backup file…* (for example on your Desktop). Kept up to date about a minute after each change while a stash page is open. After a browser restart the browser may ask permission again; a notice with an *Allow* button appears.
 - **Undo** covers moves, group changes, notes, deletes, reordering and merges.
 
+## Import, export, reminders
+
+- **Tools menu → Import links from pasted text…** takes anything with links in it (URL lists, emails, Markdown, OneTab's `URL | title`, HTML) and can drop them into a group. **Import links or bookmarks from a file…** also reads browser bookmark files (`.html`).
+- **Export as a bookmarks file (HTML)**, **Export links as plain text**, **Export as Markdown** and **Back up stash to a file…** (full backup with thumbnails).
+- **Remind me…** (card menu, selection bar, or **r**): a system notification at the time you choose, with *Open the tab* and *Remind me in 1 hour*. Switch notifications off in Settings if you do not want them.
+- **Recently deleted** (Settings, off by default) keeps deleted tabs for 30 days.
+- Settings → *When I open several tabs at once* picks plain tabs, a Chrome tab group or a new window.
+
 ## Open TabDepot in every new tab
 
 Browsers only allow this as a fixed extension setting, so it is opt-in:

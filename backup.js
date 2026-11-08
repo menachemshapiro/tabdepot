@@ -1,6 +1,7 @@
 // Backup files: build (with or without thumbnails), parse and merge (old and new formats).
 
 import { mutate, ensureGroup, dupKey, uid, idbGet, idbPut, normalizeState } from './common.js';
+import { looksLikeBookmarksHtml, parseBookmarksHtml, linksFromText } from './bookmarks.js';
 
 export const blobToDataUrl = (blob) =>
   new Promise((resolve, reject) => {
@@ -41,7 +42,8 @@ export async function buildBackup(state, items, { thumbs = true, allGroups = fal
   };
 }
 
-// Accepts a TabDepot backup (any version) or any text containing links.
+// Accepts a TabDepot backup (any version), a bookmarks HTML file, or any text containing links
+// (plain URLs, Markdown links, OneTab "URL | title" lines, HTML anchors).
 export function parseBackup(text) {
   try {
     const data = JSON.parse(text);
@@ -50,10 +52,14 @@ export function parseBackup(text) {
       return normalizeState({ items, groups: Array.isArray(data.groups) ? data.groups : [], orders: data.orders || {} });
     }
   } catch {
-    /* not JSON: fall through to the link list */
+    /* not JSON: fall through */
   }
-  const urls = [...new Set(text.match(/https?:\/\/[^\s<>"')\]]+/g) || [])];
-  return urls.length ? normalizeState({ items: urls.map((url) => ({ url, title: url })), groups: [], orders: {} }) : null;
+  if (typeof DOMParser !== 'undefined' && looksLikeBookmarksHtml(text)) {
+    const parsed = parseBookmarksHtml(text);
+    if (parsed.items.length) return parsed;
+  }
+  const links = linksFromText(text);
+  return links.length ? normalizeState({ items: links.map((l) => ({ url: l.url, title: l.title || l.url })), groups: [], orders: {} }) : null;
 }
 
 // Adds what is missing to `state` (in place). Groups are matched by name and parent; duplicates (by

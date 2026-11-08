@@ -11,7 +11,7 @@ export const app = {
     progress: null, // thumbnail fetching progress from the background
     view: 'all', // 'all' | 'none' | group id
     query: '',
-    filters: { site: '', age: 0, note: false, link: '' },
+    filters: { site: '', age: 0, note: false, link: '', remind: false },
     selected: new Set(),
     anchor: null,
     order: [], // item ids in on-screen order (first occurrence)

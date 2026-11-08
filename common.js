@@ -27,6 +27,9 @@ export const DEFAULT_SETTINGS = {
   autoStashDays: 0, // 0 = off
   checkUpdates: true, // look for a newer release on GitHub (at most every 6 hours)
   snapshots: true, // rolling safety snapshots (stash history + open-tabs history)
+  openDest: 'tabs', // where several tabs open: 'tabs' (this window), 'group' (as a Chrome tab group), 'window' (new window)
+  notifications: true, // system notifications (reminders, auto-stash, shortcuts)
+  keepDeleted: false, // keep deleted tabs for 30 days in "Recently deleted"
   cardSize: 300,
   sort: 'newest',
 };

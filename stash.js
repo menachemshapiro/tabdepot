@@ -21,7 +21,7 @@ import { listSnapshots, getSnapshot } from './snapshots.js';
 import { app, byId, groupOf, refresh, done, doUndo, selectedItems } from './app.js';
 import { $, h, ic, ago, hueOf, plural, showMenu, closeMenu, toast, hideToast, setBanner } from './ui.js';
 import * as act from './actions.js';
-import { openSettings, showText, refreshAutobackupStatus } from './dialogs.js';
+import { openSettings, openTrash, showText, refreshAutobackupStatus } from './dialogs.js';
 import { openSnapshots } from './snapui.js';
 import { startTriage } from './triage.js';
 import { initUpdates, checkNow, rollbackNow } from './updateui.js';
@@ -39,7 +39,7 @@ const sorters = {
   domain: (a, b) => hostOf(a.url).localeCompare(hostOf(b.url)) || (a.title || '').localeCompare(b.title || ''),
 };
 
-const filtersActive = () => !!(ui.query || ui.filters.site || ui.filters.age || ui.filters.note || ui.filters.link);
+const filtersActive = () => !!(ui.query || ui.filters.site || ui.filters.age || ui.filters.note || ui.filters.link || ui.filters.remind);
 
 function passes(it, toks, names) {
   const f = ui.filters;
@@ -50,6 +50,7 @@ function passes(it, toks, names) {
   if (f.site && !hostOf(it.url).includes(f.site.toLowerCase().replace(/^www\./, ''))) return false;
   if (f.age && Date.now() - it.addedAt < f.age * DAY) return false;
   if (f.note && !it.note) return false;
+  if (f.remind && !it.remindAt) return false;
   if (f.link) {
     const st = it.link?.status;
     if (f.link === 'unchecked' ? !!it.link : f.link === 'bad' ? !(st === 'dead' || st === 'error') : st !== f.link) return false;
@@ -401,6 +402,13 @@ function linkBadge(it) {
   return h('span', { class: 'badge ' + st, title: tip, text });
 }
 
+function reminderLine(it) {
+  if (!it.remindAt) return null;
+  const due = it.remindAt <= Date.now();
+  const when = new Date(it.remindAt).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return h('p', { class: 'remind' + (due ? ' due' : ''), title: 'Click to change or clear this reminder', onclick: (e) => { e.stopPropagation(); act.reminderDialog([it.id]); } }, due ? `⏰ Due · ${when}` : `⏰ ${when}`);
+}
+
 function cardEl(it, key) {
   const host = hostOf(it.url) || it.url.split(':')[0];
   const sel = ui.selected.has(it.id);
@@ -431,6 +439,7 @@ function cardEl(it, key) {
       h('h3', { class: 'title', text: it.title || it.url }),
       it.description && h('p', { class: 'desc', text: it.description }),
       it.note && h('p', { class: 'note', text: it.note }),
+      reminderLine(it),
       others.length > 0 && h('p', { class: 'also', title: others.join('\n') }, ic('tag'), h('span', { text: 'Also in ' + others.join(', ') })),
       h('div', { class: 'meta', text: `Stashed ${ago(it.addedAt)}` }))
   );
@@ -477,6 +486,7 @@ function cardMenu(anchor, it, key) {
     { label: 'Groups…', onClick: () => act.groupsDialog(ui.selected.has(it.id) ? [...ui.selected] : [it.id]) },
     from && { label: `Remove from “${groupOf(from)?.name}”`, onClick: () => model.removeFromGroup([it.id], from).then(() => done('Removed from group')) },
     { label: it.note ? 'Edit note…' : 'Add note…', onClick: () => act.noteDialog([it.id]) },
+    { label: it.remindAt ? 'Change reminder…' : 'Remind me…', onClick: () => act.reminderDialog(ui.selected.has(it.id) ? [...ui.selected] : [it.id]) },
     { label: 'Edit title…', onClick: () => act.editItemDialog(it) },
     { sep: true },
     { label: 'Copy link', onClick: () => navigator.clipboard.writeText(it.url).then(() => toast('Link copied')) },
@@ -495,8 +505,9 @@ function renderFilters() {
   if (document.activeElement !== $('#fSite')) $('#fSite').value = f.site;
   $('#fAge').value = String(f.age);
   $('#fNote').checked = f.note;
+  $('#fRemind').checked = f.remind;
   $('#fLink').value = f.link;
-  $('#fClear').hidden = !(f.site || f.age || f.note || f.link);
+  $('#fClear').hidden = !(f.site || f.age || f.note || f.link || f.remind);
   // sites for autocomplete, most common first
   const counts = new Map();
   for (const it of app.state.items) counts.set(hostOf(it.url), (counts.get(hostOf(it.url)) || 0) + 1);
@@ -514,8 +525,9 @@ function bindFilters() {
   });
   $('#fAge').addEventListener('change', (e) => { ui.filters.age = Number(e.target.value); render(); });
   $('#fNote').addEventListener('change', (e) => { ui.filters.note = e.target.checked; render(); });
+  $('#fRemind').addEventListener('change', (e) => { ui.filters.remind = e.target.checked; render(); });
   $('#fLink').addEventListener('change', (e) => { ui.filters.link = e.target.value; render(); });
-  $('#fClear').addEventListener('click', () => { ui.filters = { site: '', age: 0, note: false, link: '' }; render(); });
+  $('#fClear').addEventListener('click', () => { ui.filters = { site: '', age: 0, note: false, link: '', remind: false }; render(); });
   $('#selectBtn').addEventListener('click', (e) => {
     const shown = viewIds();
     const everything = [...match];
@@ -579,6 +591,8 @@ function renderSelbar() {
     tb('Add note…', 'note', () => act.noteDialog(ids())),
     tb('Delete', 'trash', () => act.deleteIds(ids()), 'danger'),
     tb('More ▾', 'more', (e) => showMenu(e.currentTarget, [
+      { label: 'Remind me…', onClick: () => act.reminderDialog(ids()) },
+      { label: 'Copy links (one per line)', onClick: () => act.copyPlainLinks(selectedItems()) },
       { label: 'Copy links as Markdown', onClick: () => act.copyLinks(selectedItems()) },
       { label: 'Save these to a file…', onClick: () => act.saveBackup(selectedItems(), 'selection') },
       { label: 'Check these links', onClick: () => act.runLinkCheck(selectedItems()) },
@@ -808,7 +822,11 @@ function toolsMenu(anchor) {
     { label: 'Back up stash to a file…', onClick: () => act.saveBackup() },
     { label: 'Restore from a backup file…', onClick: act.restoreBackup },
     { label: 'Export as Markdown', onClick: act.exportMarkdown },
-    { label: 'Import a plain list of links…', onClick: () => $('#importFile').click() },
+    { label: 'Export links as plain text', onClick: act.exportPlainLinks },
+    { label: 'Export as a bookmarks file (HTML)', onClick: act.exportBookmarks },
+    { label: 'Import links from pasted text…', onClick: act.pasteLinks },
+    { label: 'Import links or bookmarks from a file…', onClick: () => $('#importFile').click() },
+    { label: 'Recently deleted…', onClick: () => openTrash(refresh) },
     { label: 'Safety snapshots…', onClick: () => openSnapshots() },
     { sep: true },
     { label: 'Keyboard shortcuts', onClick: () => $('#dlgHelp').showModal() },
@@ -859,6 +877,7 @@ function bindHeader() {
   $('#abNow').addEventListener('click', async () => { await act.runAutobackup({ force: true, click: true }); refreshAutobackupStatus(); });
   $('#abOff').addEventListener('click', async () => { await act.turnOffBackup(); refreshAutobackupStatus(); });
   $('#snapOpen').addEventListener('click', () => { $('#dlgSettings').close('cancel'); openSnapshots(); });
+  $('#trashOpen').addEventListener('click', () => { $('#dlgSettings').close('cancel'); openTrash(refresh); });
 }
 
 async function showChanges() {
@@ -912,6 +931,7 @@ document.addEventListener('keydown', (e) => {
   else if (k === 'a') { const ids = targetIds(); if (ids.length) act.moveMenu(document.querySelector('.card.kbd') || document.body, ids, true); }
   else if (k === 'g') act.groupsDialog(targetIds());
   else if (k === 'n') { e.preventDefault(); act.noteDialog(targetIds()); }
+  else if (k === 'r') { e.preventDefault(); act.reminderDialog(targetIds()); }
   else if (k === 'e') { const it = cursorItem(); if (it) { e.preventDefault(); act.editItemDialog(it); } }
   else if (k === 't') triage();
 });

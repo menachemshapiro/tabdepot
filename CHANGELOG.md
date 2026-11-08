@@ -3,6 +3,18 @@
 All notable changes to TabDepot (called Tab Stash before 2.1.3). Format based on [Keep a Changelog](https://keepachangelog.com/),
 versions follow [Semantic Versioning](https://semver.org/) (MAJOR.MINOR.PATCH).
 
+## [2.2.0] - 2026-11-08
+### Added
+- **Import links from pasted text.** Tools menu → *Import links from pasted text…*: paste a list of URLs, an email, Markdown, a OneTab export (`URL | title`) or the HTML of a page. Every link is found (titles are kept where the text has them) and you can add them straight to a group.
+- **Bookmarks files.** *Import links or bookmarks from a file…* now also reads the HTML bookmarks file every browser exports (folders become groups, dates are kept). *Export as a bookmarks file (HTML)* writes one that any browser can import.
+- **Plain-text links.** *Export links as plain text* (one address per line) in the Tools menu, and *Copy links (one per line)* for the selection.
+- **Reminders.** *Remind me…* on a card (or the **r** key, or the selection bar) with quick choices or an exact date and time. When it is due you get a system notification with **Open the tab** and **Remind me in 1 hour** buttons, and the card shows **Due** until you open or clear it. A new *Has a reminder* filter lists them.
+- **System notifications** (can be switched off in Settings) for reminders, for auto-stash, and for stashes made with a shortcut or the right-click menu. This adds the browser's *notifications* permission, so reload the extension once after updating.
+- **Open several tabs your way.** Settings → *When I open several tabs at once*: as plain tabs, as a Chrome tab group, or in a new window. The Open menu still lets you pick another way each time.
+- **Recently deleted** (off by default). Settings → *Keep deleted tabs for 30 days*. Tools menu or Settings → *Recently deleted…* lists them to restore or delete for good. Thumbnails are fetched again after a restore.
+### Notes
+- Safety snapshots already skip a snapshot when nothing changed, and a window you close is already saved; nothing to change there.
+
 ## [2.1.4] - 2026-11-08
 ### Changed
 - The GitHub repository is now `menachemshapiro/tabdepot`, and the updater checks there. The old address still redirects.

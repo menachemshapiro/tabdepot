@@ -46,6 +46,7 @@
         </select>
       </label>
       <label class="chk-inline"><input type="checkbox" id="fNote"> Has a note</label>
+      <label class="chk-inline"><input type="checkbox" id="fRemind"> Has a reminder</label>
       <label>Link
         <select id="fLink">
           <option value="">any</option>
@@ -72,7 +73,7 @@
 
   <div id="toast" hidden></div>
   <div id="triage" hidden></div>
-  <input type="file" id="importFile" accept=".json,.txt,application/json,text/plain" hidden>
+  <input type="file" id="importFile" accept=".json,.txt,.html,.htm,application/json,text/plain,text/html" hidden>
 
   <dialog id="dlgGroup">
     <form method="dialog">
@@ -112,6 +113,46 @@
     </form>
   </dialog>
 
+  <dialog id="dlgRemind">
+    <form method="dialog">
+      <h3 id="rTitle">Remind me</h3>
+      <div class="quick" id="rQuick"></div>
+      <label>Date and time <input type="datetime-local" id="rWhen"></label>
+      <p class="hint">You get a notification from your system at that time (if notifications are on in Settings), and the card shows a “Due” label until you open the tab or clear the reminder.</p>
+      <menu>
+        <button value="cancel" class="btn" formnovalidate>Cancel</button>
+        <button value="clear" class="btn" id="rClear" formnovalidate>Clear reminder</button>
+        <button value="ok" class="btn primary">Save</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="dlgPaste" class="wide">
+    <form method="dialog">
+      <h3>Import links from text</h3>
+      <label><textarea id="pText" rows="9" placeholder="Paste anything that contains links: a list of URLs, an email, Markdown, a OneTab export (URL | title), or the HTML of a page. Every link found is added."></textarea></label>
+      <label>Add them to <select id="pGroup"></select></label>
+      <p class="hint" id="pCount">No links found yet.</p>
+      <menu>
+        <button value="cancel" class="btn" formnovalidate>Cancel</button>
+        <button value="ok" class="btn primary" id="pOk">Import</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="dlgTrash" class="wide">
+    <form method="dialog">
+      <h3>Recently deleted</h3>
+      <p class="hint" id="tHint"></p>
+      <div id="tList" class="trash-list"></div>
+      <menu>
+        <button value="cancel" class="btn">Close</button>
+        <button type="button" class="btn" id="tForever">Delete selected for good</button>
+        <button type="button" class="btn primary" id="tRestore">Restore selected</button>
+      </menu>
+    </form>
+  </dialog>
+
   <dialog id="dlgGroups" class="wide">
     <form method="dialog">
       <h3 id="ggTitle">Groups</h3>
@@ -139,7 +180,7 @@
         <tr><td><kbd>Ctrl</kbd>+<kbd>A</kbd></td><td>Select everything shown</td></tr>
         <tr><td><kbd>Delete</kbd></td><td>Delete the selection (or the highlighted card)</td></tr>
         <tr><td><kbd>m</kbd> / <kbd>a</kbd> / <kbd>g</kbd></td><td>Move to… / Also add to… / Groups…</td></tr>
-        <tr><td><kbd>n</kbd> / <kbd>e</kbd></td><td>Add a note / edit title</td></tr>
+        <tr><td><kbd>n</kbd> / <kbd>e</kbd> / <kbd>r</kbd></td><td>Add a note / edit title / set a reminder</td></tr>
         <tr><td><kbd>t</kbd></td><td>Triage mode (one tab at a time)</td></tr>
         <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo the last change</td></tr>
         <tr><td><kbd>/</kbd></td><td>Search</td></tr>
@@ -170,7 +211,16 @@
       <p class="hint">Whatever you pick, each card also has “Open &amp; remove” and “Open &amp; keep” buttons, and Alt-click does the opposite of this setting.</p>
       <label class="row"><input type="checkbox" id="sLazy"> When restoring several tabs, leave them unloaded until clicked</label>
       <label class="row">Auto-stash tabs unused for <input type="number" id="sAuto" min="0" max="365" class="num"> days (0 = off)</label>
+      <label>When I open several tabs at once
+        <select id="sOpenDest">
+          <option value="tabs">Open them as plain tabs in this window</option>
+          <option value="group">Open them as a Chrome tab group</option>
+          <option value="window">Open them in a new window</option>
+        </select>
+      </label>
+      <label class="row"><input type="checkbox" id="sNotify"> Show system notifications (reminders, auto-stash, shortcuts)</label>
       <label class="row"><input type="checkbox" id="sSnap"> Keep automatic safety snapshots (stash history and open-tabs history)</label>
+      <label class="row"><input type="checkbox" id="sKeepDeleted"> Keep deleted tabs for 30 days in “Recently deleted” (off by default)</label>
       <div class="home">
         <strong>Backups</strong>
         <p id="abStatus"></p>
@@ -179,6 +229,7 @@
           <button type="button" class="btn" id="abNow">Back up now</button>
           <button type="button" class="btn" id="abOff">Turn off</button>
           <button type="button" class="btn" id="snapOpen">Safety snapshots…</button>
+          <button type="button" class="btn" id="trashOpen">Recently deleted…</button>
         </div>
       </div>
       <div class="home">

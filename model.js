@@ -4,6 +4,7 @@
 
 import { mutate, ensureGroup, descendantIds, dupKey, hostOf } from './common.js';
 import { takeStashSnapshot } from './snapshots.js';
+import { addToTrash } from './trash.js';
 
 export const undoStack = [];
 const MAX_UNDO = 60;
@@ -186,10 +187,11 @@ export function setOrder(key, ids) {
 
 // ---------------- items ----------------
 
-export function deleteItems(ids, label = 'delete') {
+export async function deleteItems(ids, label = 'delete') {
   const set = new Set(ids);
-  return perform(label, (state) => {
-    const removed = state.items.filter((i) => set.has(i.id)).map((i) => structuredClone(i));
+  let removed = [];
+  const result = await perform(label, (state) => {
+    removed = state.items.filter((i) => set.has(i.id)).map((i) => structuredClone(i));
     state.items = state.items.filter((i) => !set.has(i.id));
     return {
       result: removed.length,
@@ -204,6 +206,8 @@ export function deleteItems(ids, label = 'delete') {
         : null,
     };
   }, { snapshot: label === 'delete' && ids.length >= 5 });
+  if (label === 'delete') await addToTrash(removed).catch(() => {}); // only if "Recently deleted" is on
+  return result;
 }
 
 export function editItem(id, patch) {
@@ -231,6 +235,35 @@ export function setNote(ids, text, { append = false } = {}) {
     }
     return (s) => {
       for (const it of s.items) if (prev.has(it.id)) it.note = prev.get(it.id);
+    };
+  });
+}
+
+// at: timestamp (ms) or null to clear. A changed time can be announced again.
+export function setReminder(ids, at) {
+  const set = new Set(ids);
+  return perform(at ? 'set reminder' : 'clear reminder', (state) => {
+    const prev = new Map();
+    for (const it of state.items) {
+      if (!set.has(it.id)) continue;
+      prev.set(it.id, { remindAt: it.remindAt, remindFired: it.remindFired });
+      if (at) {
+        it.remindAt = at;
+        delete it.remindFired;
+      } else {
+        delete it.remindAt;
+        delete it.remindFired;
+      }
+    }
+    return (s) => {
+      for (const it of s.items) {
+        const p = prev.get(it.id);
+        if (!p) continue;
+        for (const k of ['remindAt', 'remindFired']) {
+          if (p[k] === undefined) delete it[k];
+          else it[k] = p[k];
+        }
+      }
     };
   });
 }

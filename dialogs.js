@@ -4,6 +4,8 @@ import { COLORS, COLOR_HEX, STASH_PAGE, flattenGroups, descendantIds, getSetting
 import { app, byId } from './app.js';
 import { $, h, toast, ago, plural, hueOf } from './ui.js';
 import * as ab from './autobackup.js';
+import { linksFromText } from './bookmarks.js';
+import { listTrash, restoreFromTrash, deleteFromTrash, TRASH_DAYS } from './trash.js';
 
 // ---------------- helpers ----------------
 
@@ -74,6 +76,117 @@ export function askNote(ids) {
   const p = ask($('#dlgNote'), () => ({ text: $('#nText').value.trim(), append: !$('#nAppendRow').hidden && $('#nAppend').checked }));
   $('#nText').focus();
   return p;
+}
+
+// ---------------- reminder dialog ----------------
+
+const pad2 = (n) => String(n).padStart(2, '0');
+export const toLocalInput = (ms) => {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+};
+
+// Quick choices relative to `now` (pure, so it can be tested).
+export function reminderPresets(now = new Date()) {
+  const at = (days, hour) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() + days);
+    d.setHours(hour, 0, 0, 0);
+    return d.getTime();
+  };
+  const toMonday = ((8 - now.getDay()) % 7) || 7;
+  return [
+    ['In 3 hours', now.getTime() + 3 * 3600000],
+    ['Tomorrow morning', at(1, 9)],
+    ['This weekend', at(((6 - now.getDay()) + 7) % 7 || 7, 10)],
+    ['Next Monday', at(toMonday, 9)],
+    ['In a week', at(7, 9)],
+  ];
+}
+
+// Resolves to { at } (a timestamp, or null to clear) or null when cancelled.
+export function askReminder(ids) {
+  const items = ids.map(byId).filter(Boolean);
+  const dlg = $('#dlgRemind');
+  $('#rTitle').textContent = items.length === 1 ? 'Remind me about this tab' : `Remind me about ${plural(items.length, 'tab')}`;
+  const current = items.length === 1 ? items[0].remindAt : 0;
+  $('#rWhen').value = toLocalInput(current || reminderPresets()[1][1]);
+  $('#rClear').hidden = !items.some((i) => i.remindAt);
+  $('#rQuick').replaceChildren(
+    ...reminderPresets().map(([label, ms]) => h('button', { type: 'button', class: 'btn', text: label, onclick: () => ($('#rWhen').value = toLocalInput(ms)) }))
+  );
+  return new Promise((resolve) => {
+    dlg.returnValue = '';
+    dlg.addEventListener(
+      'close',
+      () => {
+        if (dlg.returnValue === 'clear') return resolve({ at: null });
+        const at = new Date($('#rWhen').value).getTime();
+        resolve(dlg.returnValue === 'ok' && at ? { at } : null);
+      },
+      { once: true }
+    );
+    dlg.showModal();
+  });
+}
+
+// ---------------- paste links dialog ----------------
+
+// Resolves to { text, groupId } or null.
+export function askPaste() {
+  const dlg = $('#dlgPaste');
+  $('#pText').value = '';
+  $('#pGroup').replaceChildren(...groupOptions([], 'Ungrouped'));
+  const update = () => {
+    const n = linksFromText($('#pText').value).length;
+    $('#pCount').textContent = n ? `${plural(n, 'link')} found.` : 'No links found yet.';
+    $('#pOk').disabled = !n;
+  };
+  $('#pText').oninput = update;
+  update();
+  const p = ask(dlg, () => ({ text: $('#pText').value, groupId: $('#pGroup').value || null }));
+  $('#pText').focus();
+  return p;
+}
+
+// ---------------- recently deleted ----------------
+
+export async function openTrash(onChange) {
+  const dlg = $('#dlgTrash');
+  const list = $('#tList');
+  const boxes = new Map();
+  const build = async () => {
+    const entries = await listTrash();
+    boxes.clear();
+    $('#tHint').textContent = (await getSettings()).keepDeleted
+      ? `Deleted tabs are kept for ${TRASH_DAYS} days, then removed for good. Thumbnails are fetched again after a restore.`
+      : `This is switched off, so new deletions are not kept. Turn it on in Settings. What is listed here was kept earlier and still expires after ${TRASH_DAYS} days.`;
+    list.replaceChildren();
+    if (!entries.length) list.append(h('p', { class: 'hint', text: 'Nothing here.' }));
+    for (const { item, deletedAt } of entries) {
+      const cb = h('input', { type: 'checkbox' });
+      boxes.set(item.id, cb);
+      list.append(h('label', { class: 'row trash-row' }, cb, h('span', { class: 'trash-title', text: item.title || item.url }), h('span', { class: 'hint', text: `${item.url.replace(/^https?:\/\/(www\.)?/, '').slice(0, 50)} · deleted ${ago(deletedAt)}` })));
+    }
+  };
+  const chosen = () => {
+    const ids = [...boxes].filter(([, cb]) => cb.checked).map(([id]) => id);
+    return ids.length ? ids : null;
+  };
+  $('#tRestore').onclick = async () => {
+    const n = await restoreFromTrash(chosen() || [...boxes.keys()]);
+    toast(`Restored ${plural(n, 'tab')}`);
+    await onChange?.();
+    await build();
+  };
+  $('#tForever').onclick = async () => {
+    const ids = chosen();
+    if (!ids) return toast('Tick the tabs to delete for good');
+    await deleteFromTrash(ids);
+    await build();
+  };
+  await build();
+  dlg.showModal();
 }
 
 // ---------------- groups dialog (tri-state) ----------------
@@ -172,6 +285,9 @@ export async function openSettings(hooks = {}) {
   $('#sOpenMode').value = s.openMode;
   $('#sLazy').checked = s.lazyRestore;
   $('#sSnap').checked = s.snapshots;
+  $('#sOpenDest').value = s.openDest;
+  $('#sNotify').checked = s.notifications;
+  $('#sKeepDeleted').checked = s.keepDeleted;
   $('#sUpdates').checked = s.checkUpdates;
   $('#sAuto').value = s.autoStashDays;
   $('#homeUrl').value = STASH_PAGE;
@@ -192,6 +308,9 @@ export async function openSettings(hooks = {}) {
         openMode: $('#sOpenMode').value,
         lazyRestore: $('#sLazy').checked,
         snapshots: $('#sSnap').checked,
+        openDest: $('#sOpenDest').value,
+        notifications: $('#sNotify').checked,
+        keepDeleted: $('#sKeepDeleted').checked,
         checkUpdates: $('#sUpdates').checked,
         autoStashDays: Math.max(0, Math.min(365, parseInt($('#sAuto').value, 10) || 0)),
       });

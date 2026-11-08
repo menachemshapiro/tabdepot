@@ -8,7 +8,9 @@ import { buildBackup, parseBackup, importBackup } from './backup.js';
 import { checkLinks } from './linkcheck.js';
 import * as ab from './autobackup.js';
 import { app, byId, groupOf, refresh, done, doUndo, selectedItems } from './app.js';
-import { askGroup, askItem, askNote, askGroups, showText } from './dialogs.js';
+import { askGroup, askItem, askNote, askGroups, askReminder, askPaste, showText } from './dialogs.js';
+import { buildBookmarksHtml, plainLinks } from './bookmarks.js';
+import { scheduleReminders } from './reminders.js';
 import { $, h, showMenu, toast, hideToast, plural, setBanner } from './ui.js';
 
 const ui = app.ui;
@@ -17,7 +19,11 @@ const ui = app.ui;
 
 async function openNow(items, opts, keep) {
   if (items.length > 25 && !confirm(`Open ${items.length} tabs?`)) return;
-  const n = await restoreItems(items, { ...opts, keep: true });
+  // Several tabs at once follow the "when I open several tabs" setting unless the menu chose a way.
+  const mode = opts.mode || (items.length > 1 ? app.settings.openDest : 'tabs');
+  const common = new Set(items.map((i) => i.groupIds[0] || ''));
+  const g = common.size === 1 ? groupOf([...common][0]) : null;
+  const n = await restoreItems(items, { groupTitle: g?.name || 'Restored', groupColor: g?.color || 'blue', ...opts, mode, keep: true });
   items.forEach((i) => ui.selected.delete(i.id));
   if (!n) return toast('Could not open that tab');
   if (!keep && n === items.length) {
@@ -63,16 +69,14 @@ export function openSelected(mode, keep, anchor) {
 export function openMenu(anchor, items, g) {
   const name = g?.name || 'Restored';
   const o = (extra, keep) => () => openItems(items, { ...extra, keep });
-  showMenu(anchor, [
-    { head: 'Open and remove from the stash' },
-    { label: `Open ${items.length === 1 ? 'tab' : 'all ' + items.length}`, onClick: o({}, false) },
-    { label: 'As a Chrome tab group', onClick: o({ mode: 'group', groupTitle: name, groupColor: g?.color || 'blue' }, false) },
-    { label: 'In a new window', onClick: o({ mode: 'window' }, false) },
-    { head: 'Open and keep in the stash' },
-    { label: 'Open', onClick: o({}, true) },
-    { label: 'As a Chrome tab group', onClick: o({ mode: 'group', groupTitle: name, groupColor: g?.color || 'blue' }, true) },
-    { label: 'In a new window', onClick: o({ mode: 'window' }, true) },
-  ]);
+  const plain = app.settings.openDest !== 'tabs' && items.length > 1;
+  const ways = (keep) => [
+    { label: `Open ${items.length === 1 ? 'tab' : 'all ' + items.length}`, onClick: o({}, keep) },
+    plain && { label: 'As plain tabs in this window', onClick: o({ mode: 'tabs' }, keep) },
+    { label: 'As a Chrome tab group', onClick: o({ mode: 'group', groupTitle: name, groupColor: g?.color || 'blue' }, keep) },
+    { label: 'In a new window', onClick: o({ mode: 'window' }, keep) },
+  ];
+  showMenu(anchor, [{ head: 'Open and remove from the stash' }, ...ways(false), { head: 'Open and keep in the stash' }, ...ways(true)]);
 }
 
 /* ---------------------------------------------------------------- deleting */
@@ -160,6 +164,16 @@ export async function editItemDialog(item) {
   if (!res) return;
   await model.editItem(item.id, { title: res.title || item.title, note: res.note });
   await done();
+}
+
+export async function reminderDialog(ids) {
+  ids = ids.filter((id) => byId(id));
+  if (!ids.length) return;
+  const res = await askReminder(ids);
+  if (!res) return;
+  await model.setReminder(ids, res.at);
+  scheduleReminders().catch(() => {});
+  await done(res.at ? `Reminder set for ${new Date(res.at).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'Reminder cleared');
 }
 
 export async function noteDialog(ids) {
@@ -261,6 +275,52 @@ export async function importFile(file) {
   const { added, skipped } = await importBackup(data);
   await refresh();
   toast(`Imported ${plural(added, 'tab')}${skipped ? ` (${skipped} were already in your stash; their groups were merged)` : ''}`);
+}
+
+export async function pasteLinks() {
+  const res = await askPaste();
+  if (!res) return;
+  const data = parseBackup(res.text);
+  if (!data?.items.length) return toast('No links found in that text');
+  if (res.groupId) for (const it of data.items) it.groupIds = [res.groupId];
+  await takeStashSnapshot('before importing links').catch(() => {});
+  let result;
+  if (res.groupId) {
+    // add straight to the chosen group (importBackup matches groups by name, so use the model for this)
+    const { mutate, dupKey, uid } = await import('./common.js');
+    result = { added: 0, skipped: 0 };
+    await mutate((state) => {
+      const have = new Map(state.items.map((i) => [dupKey(i.url), i]));
+      for (const it of data.items) {
+        const old = have.get(dupKey(it.url));
+        if (old) {
+          if (!old.groupIds.includes(res.groupId)) old.groupIds.push(res.groupId);
+          result.skipped++;
+        } else {
+          state.items.push({ title: it.url, description: '', ogImage: '', note: '', addedAt: Date.now(), order: state.items.length, ...it, id: uid(), groupIds: [res.groupId] });
+          result.added++;
+        }
+      }
+    });
+  } else {
+    result = await importBackup(data);
+  }
+  await refresh();
+  toast(`Imported ${plural(result.added, 'tab')}${result.skipped ? ` (${result.skipped} were already in your stash)` : ''}`);
+}
+
+export function copyPlainLinks(items) {
+  navigator.clipboard.writeText(plainLinks(items)).then(() => toast(`Copied ${plural(items.length, 'link')}`));
+}
+
+export function exportPlainLinks() {
+  if (!app.state.items.length) return toast('Nothing to export yet');
+  download('tabdepot-links.txt', plainLinks(app.state.items), 'text/plain');
+}
+
+export function exportBookmarks() {
+  if (!app.state.items.length) return toast('Nothing to export yet');
+  download('tabdepot-bookmarks.html', buildBookmarksHtml(app.state), 'text/html');
 }
 
 export function exportMarkdown() {

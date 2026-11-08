@@ -1,7 +1,10 @@
 // Service worker: rolling thumbnail cache, context menus, shortcuts, auto-stash, badge.
 
-import { STASH_PAGE, getSettings, getState, idbPut, idbDel, idbClear, hostOf } from './common.js';
-import { captureActive, openStashPage, stashTabs, stashLink, tabsForScope, activity } from './core.js';
+import { STASH_PAGE, getSettings, getState, mutate, idbPut, idbDel, idbClear, hostOf } from './common.js';
+import { captureActive, openStashPage, stashTabs, stashLink, tabsForScope, activity, restoreItems } from './core.js';
+import { notify } from './notify.js';
+import { REMINDER_ALARM, scheduleReminders, fireDueReminders } from './reminders.js';
+import { purgeTrash } from './trash.js';
 import { takeStashSnapshot, takeTabsSnapshot, windowsData } from './snapshots.js';
 
 // ---------- rolling thumbnail cache for open tabs ----------
@@ -56,6 +59,7 @@ chrome.runtime.onInstalled.addListener(({ reason, previousVersion }) => {
   chrome.alarms.create('snapshot', { periodInMinutes: 10 });
   refreshWindowCache();
   updateBadge();
+  checkReminders();
   if (reason === 'install' || reason === 'update') openStashPage();
 });
 
@@ -65,9 +69,16 @@ chrome.runtime.onStartup.addListener(() => {
   chrome.alarms.create('snapshot', { periodInMinutes: 10 });
   refreshWindowCache();
   updateBadge();
+  checkReminders();
 });
 
 // ---------- actions ----------
+
+// System notification after a stash that was started from a shortcut or menu (no page is showing the result).
+function tellStashed(res) {
+  if (!res?.count) return;
+  notify('stashed', 'TabDepot', res.count === 1 ? 'Stashed 1 tab' : `Stashed ${res.count} tabs`);
+}
 
 async function stashScope(scope, extra = {}) {
   const tabs = await tabsForScope(scope);
@@ -77,14 +88,17 @@ async function stashScope(scope, extra = {}) {
 }
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId === 'stash-page' && tab) await stashTabs([tab], { protectWindowId: tab.windowId });
-  else if (info.menuItemId === 'stash-link' && info.linkUrl) await stashLink(info.linkUrl, info.selectionText || '');
+  if (info.menuItemId === 'stash-page' && tab) tellStashed(await stashTabs([tab], { protectWindowId: tab.windowId }));
+  else if (info.menuItemId === 'stash-link' && info.linkUrl) {
+    await stashLink(info.linkUrl, info.selectionText || '');
+    notify('stashed', 'TabDepot', 'Link stashed');
+  }
   else if (info.menuItemId === 'open-stash') await openStashPage();
 });
 
 chrome.commands.onCommand.addListener(async (cmd) => {
-  if (cmd === 'stash-current') await stashScope('tab');
-  else if (cmd === 'stash-window') await stashScope('window');
+  if (cmd === 'stash-current') tellStashed(await stashScope('tab'));
+  else if (cmd === 'stash-window') tellStashed(await stashScope('window'));
   else if (cmd === 'open-stash') await openStashPage();
 });
 
@@ -113,6 +127,12 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'snapshot') {
     await takeTabsSnapshot('automatic').catch(() => {});
     await takeStashSnapshot('automatic', { auto: true, minGapMs: 30 * 60 * 1000 }).catch(() => {});
+    await purgeTrash().catch(() => {});
+    return;
+  }
+  if (alarm.name === REMINDER_ALARM) {
+    await fireDueReminders().catch(() => {});
+    await scheduleReminders().catch(() => {});
     return;
   }
   if (alarm.name !== 'auto-stash') return;
@@ -123,7 +143,50 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     (t) => !t.active && !t.pinned && !t.audible && t.lastAccessed && t.lastAccessed < cutoff
   );
   // never visits tabs (noCapture): thumbnails come only from the rolling cache
-  if (tabs.length) await stashTabs(tabs, { noCapture: true });
+  if (tabs.length) {
+    const res = await stashTabs(tabs, { noCapture: true });
+    if (res?.count) notify('autostash', 'TabDepot', `Stashed ${res.count} ${res.count === 1 ? 'tab' : 'tabs'} you had not used for ${settings.autoStashDays} days`);
+  }
+});
+
+// ---------- reminders ----------
+
+async function checkReminders() {
+  await fireDueReminders().catch(() => {}); // anything that came due while the browser was closed
+  await scheduleReminders().catch(() => {});
+}
+
+chrome.notifications?.onClicked.addListener(async (id) => {
+  chrome.notifications.clear(id);
+  if (id.startsWith('reminder:') || id === 'stashed' || id === 'autostash') await openStashPage();
+});
+
+chrome.notifications?.onButtonClicked.addListener(async (id, button) => {
+  chrome.notifications.clear(id);
+  if (!id.startsWith('reminder:')) return;
+  const itemId = id.slice('reminder:'.length);
+  const { items } = await getState();
+  const item = items.find((i) => i.id === itemId);
+  if (!item) return;
+  if (button === 0) {
+    await restoreItems([item], { keep: true });
+    await mutate((s) => {
+      const it = s.items.find((x) => x.id === itemId);
+      if (it) {
+        delete it.remindAt;
+        delete it.remindFired;
+      }
+    });
+  } else {
+    await mutate((s) => {
+      const it = s.items.find((x) => x.id === itemId);
+      if (it) {
+        it.remindAt = Date.now() + 3600000;
+        delete it.remindFired;
+      }
+    });
+  }
+  await scheduleReminders();
 });
 
 // ---------- safety snapshots: remember open windows so an accidental close is recoverable ----------
@@ -167,7 +230,11 @@ async function updateBadge() {
   chrome.action.setBadgeText({ text: n ? (n > 999 ? '999+' : String(n)) : '' });
   chrome.action.setBadgeBackgroundColor({ color: '#4c6ef5' });
 }
+let remindTimer;
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes.state) updateBadge();
+  if (area !== 'local' || !changes.state) return;
+  updateBadge();
+  clearTimeout(remindTimer);
+  remindTimer = setTimeout(() => scheduleReminders().catch(() => {}), 1500);
 });
 updateBadge();
